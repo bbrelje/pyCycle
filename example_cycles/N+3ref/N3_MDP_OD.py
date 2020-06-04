@@ -52,8 +52,8 @@ des_vars.add_output('hpc:bld_exit:frac_work', 0.5),
 des_vars.add_output('hpc:cust:frac_W', 0.0),
 des_vars.add_output('hpc:cust:frac_P', 0.1465),
 des_vars.add_output('hpc:cust:frac_work', 0.35),
-des_vars.add_output('bld3:bld_inlet:frac_W', 0.063660111), #different than NPSS due to Wref
-des_vars.add_output('bld3:bld_exit:frac_W', 0.07037185), #different than NPSS due to Wref
+des_vars.add_output('bld3:bld_inlet:frac_W', 0.05943196), #different than NPSS due to Wref
+des_vars.add_output('bld3:bld_exit:frac_W', 0.05742255), #different than NPSS due to Wref
 des_vars.add_output('hpt:bld_inlet:frac_P', 1.0),
 des_vars.add_output('hpt:bld_exit:frac_P', 0.0),
 des_vars.add_output('lpt:bld_inlet:frac_P', 1.0),
@@ -85,6 +85,7 @@ des_vars.add_output('TOC:T4max', 3150.0, units='degR'),
 des_vars.add_output('TOC:Fn_des', 6073.4, units='lbf'),
 des_vars.add_output('TOC:ram_recovery', 0.9980),
 des_vars.add_output('TOC:BPR', 20.96364424, units=None)
+des_vars.add_output('TOC:W', 810.91772237, units='lbm/s')
 des_vars.add_output('TR', 0.91024208)
 
 # POINT 2: Rolling Takeoff (RTO)
@@ -197,12 +198,12 @@ prob.model.connect('duct17:MN_out', 'TOC.duct17.MN')
 
 
 # OTHER POINTS (OFF-DESIGN)
-pts = ['RTO','SLS','CRZ']
+pts = ['CRZ']
 
-prob.model.connect('RTO:Fn_target', 'RTO.balance.rhs:FAR')
+# prob.model.connect('RTO:Fn_target', 'RTO.balance.rhs:FAR')
 
-prob.model.add_subsystem('RTO', N3(design=False, cooling=True))
-prob.model.add_subsystem('SLS', N3(design=False))
+# prob.model.add_subsystem('RTO', N3(design=False, cooling=True))
+# prob.model.add_subsystem('SLS', N3(design=False))
 prob.model.add_subsystem('CRZ', N3(design=False))
 
 for pt in pts:
@@ -283,37 +284,39 @@ for pt in pts:
     prob.model.connect('TOC.duct17.Fl_O:stat:area', pt+'.duct17.area')
 
 
-prob.model.connect('RTO.balance.hpt_chrg_cool_frac', 'TOC.bld3.bld_exit:frac_W')
-prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'TOC.bld3.bld_inlet:frac_W')
+prob.model.connect('bld3:bld_exit:frac_W', 'TOC.bld3.bld_exit:frac_W')
+prob.model.connect('bld3:bld_inlet:frac_W', 'TOC.bld3.bld_inlet:frac_W')
 
-prob.model.connect('RTO.balance.hpt_chrg_cool_frac', 'SLS.bld3.bld_exit:frac_W')
-prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'SLS.bld3.bld_inlet:frac_W')
+# prob.model.connect('RTO.balance.hpt_chrg_cool_frac', 'SLS.bld3.bld_exit:frac_W')
+# prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'SLS.bld3.bld_inlet:frac_W')
 
-prob.model.connect('RTO.balance.hpt_chrg_cool_frac', 'CRZ.bld3.bld_exit:frac_W')
-prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'CRZ.bld3.bld_inlet:frac_W')
+prob.model.connect('bld3:bld_exit:frac_W', 'CRZ.bld3.bld_exit:frac_W')
+prob.model.connect('bld3:bld_inlet:frac_W', 'CRZ.bld3.bld_inlet:frac_W')
 
 
-bal = prob.model.add_subsystem('bal', om.BalanceComp())
+# bal = prob.model.add_subsystem('bal', om.BalanceComp())
 # bal.add_balance('TOC_BPR', val=23.7281, units=None, eq_units=None)
 # prob.model.connect('bal.TOC_BPR', 'TOC.splitter.BPR')
 # prob.model.connect('CRZ.ext_ratio.ER', 'bal.lhs:TOC_BPR')
 # prob.model.connect('CRZ:VjetRatio', 'bal.rhs:TOC_BPR')
 prob.model.connect('TOC:BPR', 'TOC.splitter.BPR')
 
-bal.add_balance('TOC_W', val=820.95, units='lbm/s', eq_units='degR')
-prob.model.connect('bal.TOC_W', 'TOC.fc.W')
-prob.model.connect('RTO.burner.Fl_O:tot:T', 'bal.lhs:TOC_W')
-prob.model.connect('RTO:T4max','bal.rhs:TOC_W')
+# bal.add_balance('TOC_W', val=820.95, units='lbm/s', eq_units='degR')
+# prob.model.connect('bal.TOC_W', 'TOC.fc.W')
+# prob.model.connect('RTO.burner.Fl_O:tot:T', 'bal.lhs:TOC_W')
+# prob.model.connect('RTO:T4max','bal.rhs:TOC_W')
+
+prob.model.connect('TOC:W', 'TOC.fc.W')
 
 # bal.add_balance('CRZ_Fn_target', val=5514.4, units='lbf', eq_units='lbf', use_mult=True, mult_val=0.9, ref0=5000.0, ref=7000.0)
 # prob.model.connect('bal.CRZ_Fn_target', 'CRZ.balance.rhs:FAR')
 # prob.model.connect('TOC.perf.Fn', 'bal.lhs:CRZ_Fn_target')
 prob.model.connect('CRZ:Fn_target','CRZ.balance.rhs:FAR')
 
-bal.add_balance('SLS_Fn_target', val=28620.8, units='lbf', eq_units='lbf', use_mult=True, mult_val=1.2553, ref0=28000.0, ref=30000.0)
-prob.model.connect('bal.SLS_Fn_target', 'SLS.balance.rhs:FAR')
-prob.model.connect('RTO.perf.Fn', 'bal.lhs:SLS_Fn_target')
-prob.model.connect('SLS.perf.Fn','bal.rhs:SLS_Fn_target')
+# bal.add_balance('SLS_Fn_target', val=28620.8, units='lbf', eq_units='lbf', use_mult=True, mult_val=1.2553, ref0=28000.0, ref=30000.0)
+# prob.model.connect('bal.SLS_Fn_target', 'SLS.balance.rhs:FAR')
+# prob.model.connect('RTO.perf.Fn', 'bal.lhs:SLS_Fn_target')
+# prob.model.connect('SLS.perf.Fn','bal.rhs:SLS_Fn_target')
 
 prob.model.add_subsystem('T4_ratio',
                          om.ExecComp('TOC_T4 = RTO_T4*TR',
@@ -323,7 +326,7 @@ prob.model.add_subsystem('T4_ratio',
 prob.model.connect('RTO:T4max','T4_ratio.RTO_T4')
 prob.model.connect('T4_ratio.TOC_T4', 'TOC.balance.rhs:FAR')
 prob.model.connect('TR', 'T4_ratio.TR')
-prob.model.set_order(['des_vars', 'T4_ratio', 'TOC', 'RTO', 'CRZ', 'SLS', 'bal'])
+prob.model.set_order(['des_vars', 'T4_ratio', 'TOC', 'CRZ'])
 
 
 newton = prob.model.nonlinear_solver = om.NewtonSolver()
@@ -378,18 +381,18 @@ prob.model.add_constraint('TOC.perf.Fn', lower=5800.0, ref=6000.0)
 
 prob.setup(check=False)
 
-prob['RTO.hpt_cooling.x_factor'] = 0.9
+# prob['RTO.hpt_cooling.x_factor'] = 0.9
 
 # initial guesses
 prob['TOC.balance.FAR'] = 0.02650
-prob['bal.TOC_W'] = 820.95
+# prob['bal.TOC_W'] = 820.95
 prob['TOC.balance.lpt_PR'] = 10.937
 prob['TOC.balance.hpt_PR'] = 4.185
 prob['TOC.fc.balance.Pt'] = 5.272
 prob['TOC.fc.balance.Tt'] = 444.41
 
 DNAME = 'TOC'
-ODNAMES = ['RTO', 'SLS', 'CRZ']
+ODNAMES = ['CRZ']
 DPARMS = ['balance.FAR', 'balance.lpt_PR', 'balance.hpt_PR', 'fc.balance.Pt', 'fc.balance.Tt']
 ODPARMS = ['balance.FAR',
            'balance.W',
@@ -458,57 +461,53 @@ for pt in pts:
 
 
 st = time.time()
-# DPARMS = ['balance.FAR', 'balance.lpt_PR', 'balance.hpt_PR', 'fc.balance.Pt', 'fc.balance.Tt',
-#           'balance.gb_trq', 'balance.hpc_PR', 'balance.fan_eff', 'balance.lpc_eff','balance.hpt_eff',
-#           'balance.lpt_eff',
-#           'fan.map.SMW_bal.NcMap',
-#           'hpc.map.SMW_bal.NcMap',
-#           'lpc.map.SMW_bal.NcMap',
-#           'core_nozz.PR',
-#           'byp_nozz.PR',
-#           'hpc_EtaBalance.eta_a']
-# ODPARMS = ['balance.FAR',
-#            'balance.W',
-#            'balance.BPR',
-#            'balance.fan_Nmech',
-#            'balance.lp_Nmech',
-#            'balance.hp_Nmech',
-#            'fc.balance.Pt',
-#            'fc.balance.Tt',
-#            'hpt.PR',
-#            'lpt.PR',
-#            'fan.map.RlineMap',
-#            'fan.map.NcMap',
-#            'lpc.map.RlineMap',
-#            'lpc.map.NcMap',
-#            'hpc.map.RlineMap',
-#            'hpc.map.NcMap',
-#            'gearbox.trq_base',
-#            'core_nozz.PR',
-#            'byp_nozz.PR']
-# load_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'initpkl.pkl')
 
 prob.set_solver_print(level=-1)
 prob.set_solver_print(level=2, depth=1)
+load_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'initpklod.pkl')
 # prob.run_model()
-for power in [0.]:
-    prob['TOC.motor.power'] =  power
-    for pt in pts:
-        prob[pt+'.motor.power'] = power
-    prob.run_model()
-    # dump_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'initpkl2.pkl')
-    # prob.check_partials(compact_print=True)
-    # for pt in ['TOC']+pts:
-    #     viewer(prob, pt)
-    # prob.run_driver()
-    for pt in ['TOC']+pts:
-        viewer(prob, pt)
-    # dump_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'opt_guess.pkl')
+# dump_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'initpklod.pkl')
 
-prob.model.bal.list_outputs()
-print('HPT_chrg_cool_frac')
-print(prob['RTO.balance.hpt_chrg_cool_frac'])
-print(prob['RTO.balance.hpt_nochrg_cool_frac'])
+
+# for alt in [35000., 32500., 30000., 27500., 25000., 22500.]:
+#     for i, thrust in enumerate([5220., 4800., 4400., 4200., 3800., 3400., 3000.]):
+
+#         print('======Running Thrust ' +str(thrust)+' Alt '+str(alt)+'===================')
+#         prob['CRZ:Fn_target'] =  thrust
+#         prob['CRZ:alt'] = alt
+#         prob.run_model()
+#         for pt in ['TOC']+pts:
+#             viewer(prob, pt)
+#         if i == 0:
+#             dump_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'sweep_tmp.pkl')
+
+#     load_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'sweep_tmp.pkl')
+
+for alt in [35000.]:
+    for i, power in enumerate([0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4]):
+
+        print('======Running Alt ' +str(alt)+' Power '+str(power)+'===================')
+        prob['CRZ.motor.power'] =  power
+        prob['CRZ:alt'] = alt
+        prob['CRZ:MN'] = 0.7
+        prob['CRZ:Fn_target'] = 5220
+        prob.run_model()
+        for pt in pts:
+            viewer(prob, pt)
+        if i == 0:
+            dump_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'sweep_tmp.pkl')
+
+    load_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, 'sweep_tmp.pkl')
+
+# prob['CRZ:Fn_target'] = 5220
+# prob['CRZ:alt'] = 35000
+# prob.run_model()
+# for pt in ['TOC']+pts:
+#     viewer(prob, pt)
+# prob.model.bal.list_outputs()
+# print('HPT_chrg_cool_frac')
+# print(prob['RTO.balance.hpt_chrg_cool_frac'])
+# print(prob['RTO.balance.hpt_nochrg_cool_frac'])
 
 # for power in [0.2, 0.4, 0.6, 0.8, 1.0]:
 #     prob['TOC.motor.power'] =  power

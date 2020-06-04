@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-
+import pickle
 import openmdao.api as om
 
 import pycycle.api as pyc
@@ -63,9 +63,23 @@ class N3(om.Group):
 
         self.add_subsystem('fan_shaft', pyc.Shaft(num_ports=2), promotes_inputs=[('Nmech','Fan_Nmech')])
         self.add_subsystem('gearbox', pyc.Gearbox(design=design), promotes_inputs=[('N_in','LP_Nmech'), ('N_out','Fan_Nmech')])
-        self.add_subsystem('lp_shaft', pyc.Shaft(num_ports=3), promotes_inputs=[('Nmech','LP_Nmech')])
+        self.add_subsystem('lp_shaft', pyc.Shaft(num_ports=4), promotes_inputs=[('Nmech','LP_Nmech')])
         self.add_subsystem('hp_shaft', pyc.Shaft(num_ports=2), promotes_inputs=[('Nmech','HP_Nmech')])
         self.add_subsystem('perf', pyc.Performance(num_nozzles=2, num_burners=1))
+        #0.43897
+        ivc = om.IndepVarComp()
+        # ivc.add_output('trq', val=0.0, units='ft*lbf')
+        ivc.add_output('power', val=0.0, units='MW')
+        self.add_subsystem('motor', ivc)
+        # compute motor power from torque and nmech
+        self.add_subsystem('motor_power', om.ExecComp('trq = pwr * 5252 / Nmech',
+                            trq={'value':0.0, 'units':'ft*lbf'},
+                            Nmech={'value':5100, 'units':'rpm'},
+                            pwr={'value':0.0, 'units':'hp'}),
+                            promotes_inputs=[('Nmech', 'LP_Nmech')])
+        # self.connect('LP_Nmech', 'motor_power.Nmech')
+        self.connect('motor.power', 'motor_power.pwr')
+        self.connect('motor_power.trq', 'lp_shaft.trq_3')
 
         self.connect('inlet.Fl_O:tot:P', 'perf.Pt2')
         self.connect('hpc.Fl_O:tot:P', 'perf.Pt3')
@@ -79,6 +93,7 @@ class N3(om.Group):
         self.connect('gearbox.trq_in', 'lp_shaft.trq_0')
         self.connect('lpc.trq', 'lp_shaft.trq_1')
         self.connect('lpt.trq', 'lp_shaft.trq_2')
+        # self.connect('motor.trq', 'lp_shaft.trq_3')
         self.connect('hpc.trq', 'hp_shaft.trq_0')
         self.connect('hpt.trq', 'hp_shaft.trq_1')
         self.connect('fc.Fl_O:stat:P', 'core_nozz.Ps_exhaust')
@@ -95,7 +110,7 @@ class N3(om.Group):
         self.connect('byp_nozz.ideal_flow.V', 'ext_ratio.byp_V_ideal')
 
 
-        main_order = ['fc', 'inlet', 'fan', 'splitter', 'duct2', 'lpc', 'bld25', 'duct25', 'hpc', 'bld3', 'burner', 'hpt', 'duct45',
+        main_order = ['fc', 'motor', 'motor_power', 'inlet', 'fan', 'splitter', 'duct2', 'lpc', 'bld25', 'duct25', 'hpc', 'bld3', 'burner', 'hpt', 'duct45',
                             'lpt', 'duct5', 'core_nozz', 'byp_bld', 'duct17', 'byp_nozz', 'gearbox', 'fan_shaft', 'lp_shaft', 'hp_shaft',
                             'perf', 'ext_ratio']
 
@@ -103,32 +118,32 @@ class N3(om.Group):
 
         balance = self.add_subsystem('balance', om.BalanceComp())
         if design:
-
+            # add fuel until matching T4 is satisfied
             balance.add_balance('FAR', eq_units='degR', lower=1e-4, val=.017)
             self.connect('balance.FAR', 'burner.Fl_I:FAR')
             self.connect('burner.Fl_O:tot:T', 'balance.lhs:FAR')
-
+            # set LPT pressure ratio such that lp shaft power balances out
             balance.add_balance('lpt_PR', val=10.937, lower=1.001, upper=20, eq_units='hp', rhs_val=0., res_ref=1e4)
             self.connect('balance.lpt_PR', 'lpt.PR')
             self.connect('lp_shaft.pwr_net', 'balance.lhs:lpt_PR')
-
+            # set HPT pressure ratio so hp shaft power balances out
             balance.add_balance('hpt_PR', val=4.185, lower=1.001, upper=8, eq_units='hp', rhs_val=0., res_ref=1e4)
             self.connect('balance.hpt_PR', 'hpt.PR')
             self.connect('hp_shaft.pwr_net', 'balance.lhs:hpt_PR')
-
+            # set gearbox torque so that fan shaft net power balances out
             balance.add_balance('gb_trq', val=23928.0, units='ft*lbf', eq_units='hp', rhs_val=0.0)
             self.connect('balance.gb_trq', 'gearbox.trq_base')
             self.connect('fan_shaft.pwr_net', 'balance.lhs:gb_trq')
-
+            # set HPC pressure ratio so that overall pressure ratio matches design
             balance.add_balance('hpc_PR', val=14.0, units=None, eq_units=None)
             self.connect('balance.hpc_PR', ['hpc.PR', 'opr_calc.HPCPR'])
             # self.connect('perf.OPR', 'balance.lhs:hpc_PR')
             self.connect('opr_calc.OPR_simple', 'balance.lhs:hpc_PR')
-
+            # set fan efficiency such that fan polytropic effciciency matches design
             balance.add_balance('fan_eff', val=0.9689, units=None, eq_units=None)
             self.connect('balance.fan_eff', 'fan.eff')
             self.connect('fan.eff_poly', 'balance.lhs:fan_eff')
-
+            # set LPC efficiency such that lpc polytropic efficiency matches design
             balance.add_balance('lpc_eff', val=0.8895, units=None, eq_units=None)
             self.connect('balance.lpc_eff', 'lpc.eff')
             self.connect('lpc.eff_poly', 'balance.lhs:lpc_eff')
@@ -136,15 +151,15 @@ class N3(om.Group):
             # balance.add_balance('hpc_eff', val=0.8470, units=None, eq_units=None)
             # self.connect('balance.hpc_eff', 'hpc.eff')
             # self.connect('hpc.eff_poly', 'balance.lhs:hpc_eff')
-
+            # set HPT efficiency such that hpt polytropic efficiency matches design
             balance.add_balance('hpt_eff', val=0.9226, units=None, eq_units=None)
             self.connect('balance.hpt_eff', 'hpt.eff')
             self.connect('hpt.eff_poly', 'balance.lhs:hpt_eff')
-
+            # set LPT efficiency such that lpt polytropic efficiency matches design
             balance.add_balance('lpt_eff', val=0.9401, units=None, eq_units=None)
             self.connect('balance.lpt_eff', 'lpt.eff')
             self.connect('lpt.eff_poly', 'balance.lhs:lpt_eff')
-
+            # HPC efficiency requires special treatment to correct mass flow
             self.add_subsystem('hpc_CS',
                     om.ExecComp('CS = Win *(pow(Tout/518.67,0.5)/(Pout/14.696))',
                             Win= {'value': 10.0, 'units':'lbm/s'},
@@ -158,13 +173,13 @@ class N3(om.Group):
             self.connect('hpc_CS.CS','hpc_EtaBalance.CS')
             self.connect('hpc.eff_poly', 'hpc_EtaBalance.eta_p')
             self.connect('hpc_EtaBalance.eta_a', 'hpc.eff')
-
+            # compute fan diameter using hub to tip ratio
             self.add_subsystem('fan_dia', om.ExecComp('FanDia = 2.0*(area/(pi*(1.0-hub_tip**2.0)))**0.5',
                             area={'value':7000.0, 'units':'inch**2'},
                             hub_tip={'value':0.3125, 'units':None},
                             FanDia={'value':100.0, 'units':'inch'}))
             self.connect('inlet.Fl_O:stat:area', 'fan_dia.area')
-
+            # side calcultaion for alternate OPR computation method to match n+3
             self.add_subsystem('opr_calc', om.ExecComp('OPR_simple = FPR*LPCPR*HPCPR',
                             FPR={'value':1.3, 'units':None},
                             LPCPR={'value':3.0, 'units':None},
@@ -176,12 +191,12 @@ class N3(om.Group):
             order_add = ['hpc_CS', 'hpc_EtaBalance', 'fan_dia', 'opr_calc']
 
         else:
-
+            # set fuel flow to match fnet target
             balance.add_balance('FAR', val=0.017, lower=1e-4, eq_units='lbf')
             self.connect('balance.FAR', 'burner.Fl_I:FAR')
             self.connect('perf.Fn', 'balance.lhs:FAR')
             # self.connect('burner.Fl_O:tot:T', 'balance.lhs:FAR')
-
+            # set mass flow so that sonic area is the same in all OD conditions (choked flow in the core)
             balance.add_balance('W', units='lbm/s', lower=10., upper=2500., eq_units='inch**2')
             self.connect('balance.W', 'fc.W')
             self.connect('core_nozz.Throat:stat:area', 'balance.lhs:W')
@@ -263,7 +278,7 @@ class N3(om.Group):
         newton.options['atol'] = 1e-4
         newton.options['rtol'] = 1e-4
         newton.options['iprint'] = 2
-        newton.options['maxiter'] = 10
+        newton.options['maxiter'] = 15
         newton.options['solve_subsystems'] = True
         newton.options['max_sub_solves'] = 10
         newton.options['reraise_child_analysiserror'] = False
@@ -272,12 +287,45 @@ class N3(om.Group):
         # newton.linesearch.options['maxiter'] = 2
         newton.linesearch.options['bound_enforcement'] = 'scalar'
         newton.linesearch.options['iprint'] = -1
+        # newton.linesearch.options['print_bound_enforce'] = True
+
         # if design:
         #     newton.linesearch.options['print_bound_enforce'] = True
 
         # newton.options['debug_print'] = True
 
         self.linear_solver = om.DirectSolver(assemble_jac=True)
+
+def dump_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, filename, OTHER_PARMS=None):
+    guess_dict = dict()
+    guess_dict[DNAME] = dict()
+    for odname in ODNAMES:
+        guess_dict[odname] = dict()
+
+    # write design guesses
+    for dparm in DPARMS:
+        guess_dict[DNAME][dparm] = prob[DNAME+'.'+dparm]
+    for odname in ODNAMES:
+        for odparm in ODPARMS:
+            guess_dict[odname][odparm] = prob[odname+'.'+odparm]
+    if OTHER_PARMS:
+        for other_parm in OTHER_PARMS:
+            guess_dict[other_parm] = prob[other_parm]
+
+    with open(filename, 'wb') as fh:
+        pickle.dump(guess_dict, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    
+def load_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, filename, OTHER_PARMS=None):
+    with open(filename, 'rb') as fh:
+        guess_dict = pickle.load(fh)
+    for dparm in DPARMS:
+        prob[DNAME+'.'+dparm] = guess_dict[DNAME][dparm]
+    for odname in ODNAMES:
+        for odparm in ODPARMS:
+            prob[odname+'.'+odparm] = guess_dict[odname][odparm]
+    if OTHER_PARMS:
+        for other_parm in OTHER_PARMS:
+            prob[other_parm] = guess_dict[other_parm]
 
 def viewer(prob, pt, file=sys.stdout):
     """
@@ -636,7 +684,7 @@ if __name__ == "__main__":
     prob.model.connect('RTO:T4max','T4_ratio.RTO_T4')
     prob.model.connect('T4_ratio.TOC_T4', 'TOC.balance.rhs:FAR')
     prob.model.connect('TR', 'T4_ratio.TR')
-    prob.model.set_order(['des_vars', 'T4_ratio', 'TOC', 'RTO', 'SLS', 'CRZ'])
+    prob.model.set_order(['des_vars', 'T4_ratio', 'TOC', 'RTO', 'CRZ', 'SLS'])
 
 
     newton = prob.model.nonlinear_solver = om.NewtonSolver()
