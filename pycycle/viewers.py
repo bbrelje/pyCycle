@@ -1,6 +1,37 @@
 import sys
 
 
+def print_duct_heat_transfer(prob, duct_names, file=sys.stdout):
+    names = ['Q_dot']
+
+    n_names = len(names)
+    line_tmpl = '{:<23}|  '+'{:>13}'*n_names
+    len_header = 27+13*n_names
+
+    print("-"*len_header, file=file, flush=True)
+    print("                            DUCT HEAT TRANSFER", file=file, flush=True)
+    print("-"*len_header, file=file, flush=True)
+
+    # header_line
+    vals = ['Duct Heat Transfer'] + names
+    print('-'*len_header, file=file, flush=True)
+    print(line_tmpl.format(*vals), file=file, flush=True)
+    print('-'*len_header, file=file, flush=True)
+
+    line_tmpl = '{:<23.23}|  ' + '{:13.3f}' * n_names
+
+    for duct_name in duct_names:
+        data = []
+        for name in names:
+            full_name = '{}.{}'.format(duct_name, name)
+            data.append(prob[full_name][0])
+
+        vals = [duct_name] + data
+        print(line_tmpl.format(*vals), file=file, flush=True)
+
+    print('-'*len_header, file=file, flush=True)
+
+
 def print_flow_station(prob, fs_names, file=sys.stdout):
     names = ['tot:P', 'tot:T', 'tot:h', 'tot:S', 'stat:P', 'stat:W', 'stat:MN', 'stat:V', 'stat:area']
 

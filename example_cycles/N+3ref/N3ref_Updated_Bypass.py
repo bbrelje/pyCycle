@@ -381,6 +381,12 @@ def viewer(prob, pt, file=sys.stdout):
     print("    Mach      Alt       W      Fn      Fg    Fram     OPR     TSFC      BPR ", file=file, flush=True)
     print(" %7.5f  %7.1f %7.3f %7.1f %7.1f %7.1f %7.3f  %7.5f  %7.3f" %(prob[pt+'.fc.Fl_O:stat:MN'], prob[pt+'.fc.alt'],prob[pt+'.inlet.Fl_O:stat:W'],prob[pt+'.perf.Fn'],prob[pt+'.perf.Fg'],prob[pt+'.inlet.F_ram'],prob[pt+'.perf.OPR'],prob[pt+'.perf.TSFC'], prob[pt+'.splitter.BPR']), file=file, flush=True)
 
+    # print duct heat transfer values
+    duct_names = ['duct2', 'duct25', 'duct45', 'duct5', 'HXduct', 'duct17', 'mixer_duct']
+    duct_full_names = [f'{pt}.{duct}' for duct in duct_names]
+    pyc.print_duct_heat_transfer(prob, duct_full_names, file=file)
+
+    # print flow station data
     fs_names = ['fc.Fl_O','inlet.Fl_O','fan.Fl_O','splitter.Fl_O1','duct2.Fl_O',
                 'lpc.Fl_O','bld25.Fl_O','duct25.Fl_O','hpc.Fl_O','bld3.Fl_O',
                 'burner.Fl_O','hpt.Fl_O','duct45.Fl_O','lpt.Fl_O','duct5.Fl_O',
@@ -390,24 +396,30 @@ def viewer(prob, pt, file=sys.stdout):
     fs_full_names = [f'{pt}.{fs}' for fs in fs_names]
     pyc.print_flow_station(prob, fs_full_names, file=file)
 
+    # print compresor data
     comp_names = ['fan', 'lpc', 'hpc']
     comp_full_names = [f'{pt}.{c}' for c in comp_names]
     pyc.print_compressor(prob, comp_full_names, file=file)
 
+    # print burner data
     pyc.print_burner(prob, [f'{pt}.burner'])
 
+    # print turbine data
     turb_names = ['hpt', 'lpt']
     turb_full_names = [f'{pt}.{t}' for t in turb_names]
     pyc.print_turbine(prob, turb_full_names, file=file)
 
+    # print nozzle data
     noz_names = ['core_nozz', 'byp_nozz']
     noz_full_names = [f'{pt}.{n}' for n in noz_names]
     pyc.print_nozzle(prob, noz_full_names, file=file)
 
+    # print mixer data
     shaft_names = ['hp_shaft', 'lp_shaft', 'fan_shaft']
     shaft_full_names = [f'{pt}.{s}' for s in shaft_names]
     pyc.print_shaft(prob, shaft_full_names, file=file)
 
+    # print bleed data
     bleed_names = ['hpc', 'bld3','bld3','bld25']
     bleed_full_names = [f'{pt}.{b}' for b in bleed_names]
     pyc.print_bleed(prob, bleed_full_names, file=file)
@@ -442,9 +454,11 @@ if __name__ == "__main__":
     des_vars.add_output('lpt:effDes', 0.940104),
     des_vars.add_output('lpt:effPoly', 0.92),
     des_vars.add_output('duct5:dPqP', 0.0100),
+    des_vars.add_output('duct5:Q_dot', -113.738, units='Btu/s')
     des_vars.add_output('core_nozz:Cv', 0.9999),
     des_vars.add_output('duct17:dPqP', 0.0150),
     des_vars.add_output('HXduct:dPqP', 0.001),
+    des_vars.add_output('HXduct:Q_dot', 113.738, units='Btu/s')
     des_vars.add_output('mixer_duct:dPqP', 0.015)
     des_vars.add_output('byp_nozz:Cv', 0.9975),
     des_vars.add_output('fan_shaft:Nmech', 2184.5, units='rpm'),
@@ -566,9 +580,11 @@ if __name__ == "__main__":
     prob.model.connect('duct45:dPqP', 'TOC.duct45.dPqP')
     prob.model.connect('lpt:effPoly', 'TOC.balance.rhs:lpt_eff')
     prob.model.connect('duct5:dPqP', 'TOC.duct5.dPqP')
+    prob.model.connect('duct5:Q_dot', 'TOC.duct5.Q_dot')
     prob.model.connect('core_nozz:Cv', 'TOC.core_nozz.Cv')
     prob.model.connect('duct17:dPqP', 'TOC.duct17.dPqP')
     prob.model.connect('HXduct:dPqP', 'TOC.HXduct.dPqP')
+    prob.model.connect('HXduct:Q_dot', 'TOC.HXduct.Q_dot')
     prob.model.connect('mixer_duct:dPqP', 'TOC.mixer_duct.dPqP')
     prob.model.connect('byp_nozz:Cv', 'TOC.byp_nozz.Cv')
     prob.model.connect('fan_shaft:Nmech', 'TOC.Fan_Nmech')
