@@ -796,7 +796,9 @@ if __name__ == "__main__":
 
     prob.setup(check=False)
     prob['RTO.hpt_cooling.x_factor'] = 0.9
-    prob['tms_q'] = 94.78
+
+    # set the thermal management system value for heat in and out of ducts
+    prob['tms_q'] = 94.78 # units: Btu/s
 
     # initial guesses
     prob['TOC.balance.FAR'] = 0.02650
