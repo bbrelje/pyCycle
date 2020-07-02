@@ -32,6 +32,11 @@ class N3(om.Group):
         cooling = self.options['cooling']
 
         # --- Add subsystems to the design ---
+        # Heat Transfer components
+        self.add_subsystem('heat_transfer', om.ExecComp(['q_out=-tms_q', 'q_in=tms_q'],
+                                                        q_out={'units':'Btu/s'},
+                                                        q_in={'units':'Btu/s'}),
+                           promotes_inputs=['tms_q'])
         # Inlet Components
         self.add_subsystem('fc', pyc.FlightConditions(thermo_data=thermo_spec, elements=pyc.AIR_MIX))
         self.add_subsystem('inlet', pyc.Inlet(design=design, thermo_data=thermo_spec, elements=pyc.AIR_MIX))
@@ -121,11 +126,15 @@ class N3(om.Group):
                         byp_Cv={'value':0.98, 'units':None},
                         ER={'value':1.4, 'units':None}))
 
+        # Heat Transfer connections
+        self.connect('heat_transfer.q_out', 'duct5.Q_dot')
+        self.connect('heat_transfer.q_in', 'HXduct.Q_dot')
+
         self.connect('core_nozz.ideal_flow.V', 'ext_ratio.core_V_ideal')
         self.connect('byp_nozz.ideal_flow.V', 'ext_ratio.byp_V_ideal')
 
 
-        main_order = ['fc', 'motor', 'motor_power', 'inlet', 'fan',
+        main_order = ['heat_transfer','fc', 'motor', 'motor_power', 'inlet', 'fan',
                       'splitter', 'duct2', 'lpc', 'bld25', 'duct25',
                       'hpc', 'bld3', 'burner', 'hpt', 'duct45',
                       'lpt', 'duct5', 'core_nozz','byp_splitter',
@@ -454,11 +463,9 @@ if __name__ == "__main__":
     des_vars.add_output('lpt:effDes', 0.940104),
     des_vars.add_output('lpt:effPoly', 0.92),
     des_vars.add_output('duct5:dPqP', 0.0100),
-    des_vars.add_output('duct5:Q_dot', -113.738, units='Btu/s')
     des_vars.add_output('core_nozz:Cv', 0.9999),
     des_vars.add_output('duct17:dPqP', 0.0150),
     des_vars.add_output('HXduct:dPqP', 0.001),
-    des_vars.add_output('HXduct:Q_dot', 113.738, units='Btu/s')
     des_vars.add_output('mixer_duct:dPqP', 0.015)
     des_vars.add_output('byp_nozz:Cv', 0.9975),
     des_vars.add_output('fan_shaft:Nmech', 2184.5, units='rpm'),
@@ -506,6 +513,7 @@ if __name__ == "__main__":
     des_vars.add_output('duct17:MN_out', 0.45),
     des_vars.add_output('HXduct:MN_out', 0.45),
     des_vars.add_output('mixer_duct:MN_out', 0.45),
+    des_vars.add_output('tms_q')
 
     # POINT 1: Top-of-climb (TOC)
     des_vars.add_output('TOC:alt', 35000., units='ft'),
@@ -580,11 +588,9 @@ if __name__ == "__main__":
     prob.model.connect('duct45:dPqP', 'TOC.duct45.dPqP')
     prob.model.connect('lpt:effPoly', 'TOC.balance.rhs:lpt_eff')
     prob.model.connect('duct5:dPqP', 'TOC.duct5.dPqP')
-    prob.model.connect('duct5:Q_dot', 'TOC.duct5.Q_dot')
     prob.model.connect('core_nozz:Cv', 'TOC.core_nozz.Cv')
     prob.model.connect('duct17:dPqP', 'TOC.duct17.dPqP')
     prob.model.connect('HXduct:dPqP', 'TOC.HXduct.dPqP')
-    prob.model.connect('HXduct:Q_dot', 'TOC.HXduct.Q_dot')
     prob.model.connect('mixer_duct:dPqP', 'TOC.mixer_duct.dPqP')
     prob.model.connect('byp_nozz:Cv', 'TOC.byp_nozz.Cv')
     prob.model.connect('fan_shaft:Nmech', 'TOC.Fan_Nmech')
@@ -630,6 +636,7 @@ if __name__ == "__main__":
     prob.model.connect('duct17:MN_out', 'TOC.duct17.MN')
     prob.model.connect('HXduct:MN_out', 'TOC.HXduct.MN')
     prob.model.connect('mixer_duct:MN_out', 'TOC.mixer_duct.MN')
+    prob.model.connect('tms_q', 'TOC.tms_q')
 
     # OTHER POINTS (OFF-DESIGN)
     pts = ['RTO','SLS','CRZ']
@@ -677,6 +684,7 @@ if __name__ == "__main__":
         prob.model.connect('lpt:bld_inlet:frac_P', pt+'.lpt.bld_inlet:frac_P')
         prob.model.connect('lpt:bld_exit:frac_P', pt+'.lpt.bld_exit:frac_P')
         prob.model.connect('bypBld:frac_W', pt+'.byp_bld.bypBld:frac_W')
+        prob.model.connect('tms_q', pt+'.tms_q')
 
         prob.model.connect('TOC.fan.s_PR', pt+'.fan.s_PR')
         prob.model.connect('TOC.fan.s_Wc', pt+'.fan.s_Wc')
@@ -788,6 +796,7 @@ if __name__ == "__main__":
 
     prob.setup(check=False)
     prob['RTO.hpt_cooling.x_factor'] = 0.9
+    prob['tms_q'] = 94.78
 
     # initial guesses
     prob['TOC.balance.FAR'] = 0.02650
