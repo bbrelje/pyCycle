@@ -795,10 +795,11 @@ if __name__ == "__main__":
     prob.model.add_constraint('TOC.fan_dia.FanDia', upper=100.0, ref=100.0)
 
     prob.setup(check=False)
+    # om.n2(prob, outfile="Updated_Bypass_n2.html")
     prob['RTO.hpt_cooling.x_factor'] = 0.9
 
     # set the thermal management system value for heat in and out of ducts
-    prob['tms_q'] = 94.78 # units: Btu/s
+    prob['tms_q'] = 189.56 # units: Btu/s
 
     # initial guesses
     prob['TOC.balance.FAR'] = 0.02650

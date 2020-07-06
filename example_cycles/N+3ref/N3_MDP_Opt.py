@@ -492,7 +492,7 @@ prob.set_solver_print(level=-1)
 prob.set_solver_print(level=2, depth=1)
 # prob.run_model()
 for power in [0.]:
-    prob['TOC.motor.power'] =  power
+    prob['TOC.motor.power'] = power
     for pt in pts:
         prob[pt+'.motor.power'] = power
     prob.run_model()
