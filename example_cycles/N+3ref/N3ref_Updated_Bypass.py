@@ -70,7 +70,7 @@ class N3(om.Group):
         self.add_subsystem('core_nozz', pyc.Nozzle(nozzType='CV', lossCoef='Cv', thermo_data=thermo_spec, elements=pyc.AIR_FUEL_MIX))
         # Bypass Components
         self.add_subsystem('byp_splitter', pyc.Splitter(design=design, thermo_data=thermo_spec, elements=pyc.AIR_MIX))
-        self.add_subsystem('HXduct', pyc.DuctTest(design=design, expMN=2.0,thermo_data=thermo_spec, elements=pyc.AIR_MIX))
+        self.add_subsystem('HXduct', pyc.Duct(design=design, expMN=2.0,thermo_data=thermo_spec, elements=pyc.AIR_MIX))
         # Bypass bleed added for main bypass duct but not heat exchanger duct
         self.add_subsystem('byp_bld', pyc.BleedOut(design=design, bleed_names=['bypBld']))
         self.add_subsystem('duct17', pyc.Duct(design=design, expMN=2.0, thermo_data=thermo_spec, elements=pyc.AIR_MIX))
