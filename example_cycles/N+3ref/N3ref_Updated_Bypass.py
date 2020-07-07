@@ -33,7 +33,12 @@ class N3(om.Group):
 
         # --- Add subsystems to the design ---
         # Heat Transfer components
-        self.add_subsystem('heat_transfer', om.ExecComp(['q_out=-tms_q', 'q_in=tms_q'],
+        self.add_subsystem('carnot', om.ExecComp(['carnot_eff =1 - ( t_c / t_h )'],
+                                                 t_c={'units':'degR'},
+                                                 t_h={'units':'degR'}))
+
+        self.add_subsystem('heat_transfer', om.ExecComp(['q_out=-tms_q', 'q_in=tms_q * ((1-0.4)*carnot_eff)'],
+                                                        carnot_eff={'value':0.0},
                                                         q_out={'units':'Btu/s'},
                                                         q_in={'units':'Btu/s'}),
                            promotes_inputs=['tms_q'])
@@ -100,7 +105,7 @@ class N3(om.Group):
         self.connect('motor.power', 'motor_power.pwr')
         self.connect('motor_power.trq', 'lp_shaft.trq_3')
 
-        # Connecting properties between engine elements and the performance element
+        # Connect components to the performance component
         self.connect('inlet.Fl_O:tot:P', 'perf.Pt2')
         self.connect('hpc.Fl_O:tot:P', 'perf.Pt3')
         self.connect('burner.Wfuel', 'perf.Wfuel_0')
@@ -129,12 +134,16 @@ class N3(om.Group):
         # Heat Transfer connections
         self.connect('heat_transfer.q_out', 'duct5.Q_dot')
         self.connect('heat_transfer.q_in', 'HXduct.Q_dot')
+        self.connect('lpt.Fl_O:tot:T', 'carnot.t_h')
+        self.connect('byp_splitter.Fl_O1:tot:T', 'carnot.t_c')
+        self.connect('carnot.carnot_eff', 'heat_transfer.carnot_eff')
+
 
         self.connect('core_nozz.ideal_flow.V', 'ext_ratio.core_V_ideal')
         self.connect('byp_nozz.ideal_flow.V', 'ext_ratio.byp_V_ideal')
 
 
-        main_order = ['heat_transfer','fc', 'motor', 'motor_power', 'inlet', 'fan',
+        main_order = ['carnot','heat_transfer','fc', 'motor', 'motor_power', 'inlet', 'fan',
                       'splitter', 'duct2', 'lpc', 'bld25', 'duct25',
                       'hpc', 'bld3', 'burner', 'hpt', 'duct45',
                       'lpt', 'duct5', 'core_nozz','byp_splitter',
@@ -433,8 +442,7 @@ def viewer(prob, pt, file=sys.stdout):
     bleed_full_names = [f'{pt}.{b}' for b in bleed_names]
     pyc.print_bleed(prob, bleed_full_names, file=file)
 
-
-if __name__ == "__main__":
+def run_model(heat_out):
 
     import time
 
@@ -446,7 +454,7 @@ if __name__ == "__main__":
     des_vars.add_output('fan:PRdes', 1.300),
     des_vars.add_output('fan:effDes', 0.96888),
     des_vars.add_output('fan:effPoly', 0.97),
-    des_vars.add_output('splitter:BPR', 23.94514401), 
+    des_vars.add_output('splitter:BPR', 23.94514401),
     des_vars.add_output('duct2:dPqP', 0.0100),
     des_vars.add_output('lpc:PRdes', 3.000),
     des_vars.add_output('lpc:effDes', 0.889513),
@@ -484,8 +492,8 @@ if __name__ == "__main__":
     des_vars.add_output('hpc:cust:frac_W', 0.0),
     des_vars.add_output('hpc:cust:frac_P', 0.1465),
     des_vars.add_output('hpc:cust:frac_work', 0.35),
-    des_vars.add_output('bld3:bld_inlet:frac_W', 0.063660111), #different than NPSS due to Wref
-    des_vars.add_output('bld3:bld_exit:frac_W', 0.07037185), #different than NPSS due to Wref
+    des_vars.add_output('bld3:bld_inlet:frac_W', 0.063660111),  # different than NPSS due to Wref
+    des_vars.add_output('bld3:bld_exit:frac_W', 0.07037185),  # different than NPSS due to Wref
     des_vars.add_output('hpt:bld_inlet:frac_P', 1.0),
     des_vars.add_output('hpt:bld_exit:frac_P', 0.0),
     des_vars.add_output('lpt:bld_inlet:frac_P', 1.0),
@@ -528,7 +536,7 @@ if __name__ == "__main__":
     # POINT 2: Rolling Takeoff (RTO)
     des_vars.add_output('RTO:MN', 0.25),
     des_vars.add_output('RTO:alt', 0.0, units='ft'),
-    des_vars.add_output('RTO:Fn_target', 22800.0, units='lbf'), #8950.0
+    des_vars.add_output('RTO:Fn_target', 22800.0, units='lbf'),  # 8950.0
     des_vars.add_output('RTO:dTs', 27.0, units='degR')
     des_vars.add_output('RTO:Ath', 5532.3, units='inch**2')
     des_vars.add_output('RTO:RlineMap', 1.75)
@@ -544,7 +552,7 @@ if __name__ == "__main__":
     # POINT 3: Sea-Level Static (SLS)
     des_vars.add_output('SLS:MN', 0.000001),
     des_vars.add_output('SLS:alt', 0.0, units='ft'),
-    des_vars.add_output('SLS:Fn_target', 28620.84, units='lbf'), 
+    des_vars.add_output('SLS:Fn_target', 28620.84, units='lbf'),
     des_vars.add_output('SLS:dTs', 27.0, units='degR')
     des_vars.add_output('SLS:Ath', 6315.6, units='inch**2')
     des_vars.add_output('SLS:RlineMap', 1.75)
@@ -558,7 +566,7 @@ if __name__ == "__main__":
     # POINT 4: Cruise (CRZ)
     des_vars.add_output('CRZ:MN', 0.8),
     des_vars.add_output('CRZ:alt', 35000.0, units='ft'),
-    des_vars.add_output('CRZ:Fn_target', 5510.72833567, units='lbf'), 
+    des_vars.add_output('CRZ:Fn_target', 5510.72833567, units='lbf'),
     des_vars.add_output('CRZ:dTs', 0.0, units='degR')
     des_vars.add_output('CRZ:Ath', 4747.1, units='inch**2')
     des_vars.add_output('CRZ:RlineMap', 1.9397)
@@ -639,7 +647,7 @@ if __name__ == "__main__":
     prob.model.connect('tms_q', 'TOC.tms_q')
 
     # OTHER POINTS (OFF-DESIGN)
-    pts = ['RTO','SLS','CRZ']
+    pts = ['RTO', 'SLS', 'CRZ']
 
     prob.model.connect('RTO:Fn_target', 'RTO.balance.rhs:FAR')
 
@@ -647,93 +655,90 @@ if __name__ == "__main__":
     prob.model.add_subsystem('SLS', N3(design=False))
     prob.model.add_subsystem('CRZ', N3(design=False))
 
-
     for pt in pts:
+        prob.model.connect(pt + ':alt', pt + '.fc.alt')
+        prob.model.connect(pt + ':MN', pt + '.fc.MN')
+        prob.model.connect(pt + ':dTs', pt + '.fc.dTs')
+        prob.model.connect(pt + ':RlineMap', pt + '.balance.rhs:BPR')
 
-        prob.model.connect(pt+':alt', pt+'.fc.alt')
-        prob.model.connect(pt+':MN', pt+'.fc.MN')
-        prob.model.connect(pt+':dTs', pt+'.fc.dTs')
-        prob.model.connect(pt+':RlineMap',pt+'.balance.rhs:BPR')
-
-        prob.model.connect(pt+':ram_recovery', pt+'.inlet.ram_recovery')
-        prob.model.connect('TOC.duct2.s_dPqP', pt+'.duct2.s_dPqP')
-        prob.model.connect('TOC.duct25.s_dPqP', pt+'.duct25.s_dPqP')
-        prob.model.connect('burner:dPqP', pt+'.burner.dPqP')
-        prob.model.connect('TOC.duct45.s_dPqP', pt+'.duct45.s_dPqP')
-        prob.model.connect('TOC.duct5.s_dPqP', pt+'.duct5.s_dPqP')
-        prob.model.connect('core_nozz:Cv', pt+'.core_nozz.Cv')
-        prob.model.connect('TOC.duct17.s_dPqP', pt+'.duct17.s_dPqP')
-        prob.model.connect('TOC.HXduct.s_dPqP', pt+'.HXduct.s_dPqP')
+        prob.model.connect(pt + ':ram_recovery', pt + '.inlet.ram_recovery')
+        prob.model.connect('TOC.duct2.s_dPqP', pt + '.duct2.s_dPqP')
+        prob.model.connect('TOC.duct25.s_dPqP', pt + '.duct25.s_dPqP')
+        prob.model.connect('burner:dPqP', pt + '.burner.dPqP')
+        prob.model.connect('TOC.duct45.s_dPqP', pt + '.duct45.s_dPqP')
+        prob.model.connect('TOC.duct5.s_dPqP', pt + '.duct5.s_dPqP')
+        prob.model.connect('core_nozz:Cv', pt + '.core_nozz.Cv')
+        prob.model.connect('TOC.duct17.s_dPqP', pt + '.duct17.s_dPqP')
+        prob.model.connect('TOC.HXduct.s_dPqP', pt + '.HXduct.s_dPqP')
         prob.model.connect('TOC.mixer_duct.s_dPqP', pt + '.mixer_duct.s_dPqP')
-        prob.model.connect('byp_nozz:Cv', pt+'.byp_nozz.Cv')
-        prob.model.connect('lp_shaft:fracLoss', pt+'.lp_shaft.fracLoss')
-        prob.model.connect('hp_shaft:HPX', pt+'.hp_shaft.HPX')
+        prob.model.connect('byp_nozz:Cv', pt + '.byp_nozz.Cv')
+        prob.model.connect('lp_shaft:fracLoss', pt + '.lp_shaft.fracLoss')
+        prob.model.connect('hp_shaft:HPX', pt + '.hp_shaft.HPX')
 
-        prob.model.connect('bld25:sbv:frac_W', pt+'.bld25.sbv:frac_W')
-        prob.model.connect('hpc:bld_inlet:frac_W', pt+'.hpc.bld_inlet:frac_W')
-        prob.model.connect('hpc:bld_inlet:frac_P', pt+'.hpc.bld_inlet:frac_P')
-        prob.model.connect('hpc:bld_inlet:frac_work', pt+'.hpc.bld_inlet:frac_work')
-        prob.model.connect('hpc:bld_exit:frac_W', pt+'.hpc.bld_exit:frac_W')
-        prob.model.connect('hpc:bld_exit:frac_P', pt+'.hpc.bld_exit:frac_P')
-        prob.model.connect('hpc:bld_exit:frac_work', pt+'.hpc.bld_exit:frac_work')
-        prob.model.connect('hpc:cust:frac_W', pt+'.hpc.cust:frac_W')
-        prob.model.connect('hpc:cust:frac_P', pt+'.hpc.cust:frac_P')
-        prob.model.connect('hpc:cust:frac_work', pt+'.hpc.cust:frac_work')
-        prob.model.connect('hpt:bld_inlet:frac_P', pt+'.hpt.bld_inlet:frac_P')
-        prob.model.connect('hpt:bld_exit:frac_P', pt+'.hpt.bld_exit:frac_P')
-        prob.model.connect('lpt:bld_inlet:frac_P', pt+'.lpt.bld_inlet:frac_P')
-        prob.model.connect('lpt:bld_exit:frac_P', pt+'.lpt.bld_exit:frac_P')
-        prob.model.connect('bypBld:frac_W', pt+'.byp_bld.bypBld:frac_W')
-        prob.model.connect('tms_q', pt+'.tms_q')
+        prob.model.connect('bld25:sbv:frac_W', pt + '.bld25.sbv:frac_W')
+        prob.model.connect('hpc:bld_inlet:frac_W', pt + '.hpc.bld_inlet:frac_W')
+        prob.model.connect('hpc:bld_inlet:frac_P', pt + '.hpc.bld_inlet:frac_P')
+        prob.model.connect('hpc:bld_inlet:frac_work', pt + '.hpc.bld_inlet:frac_work')
+        prob.model.connect('hpc:bld_exit:frac_W', pt + '.hpc.bld_exit:frac_W')
+        prob.model.connect('hpc:bld_exit:frac_P', pt + '.hpc.bld_exit:frac_P')
+        prob.model.connect('hpc:bld_exit:frac_work', pt + '.hpc.bld_exit:frac_work')
+        prob.model.connect('hpc:cust:frac_W', pt + '.hpc.cust:frac_W')
+        prob.model.connect('hpc:cust:frac_P', pt + '.hpc.cust:frac_P')
+        prob.model.connect('hpc:cust:frac_work', pt + '.hpc.cust:frac_work')
+        prob.model.connect('hpt:bld_inlet:frac_P', pt + '.hpt.bld_inlet:frac_P')
+        prob.model.connect('hpt:bld_exit:frac_P', pt + '.hpt.bld_exit:frac_P')
+        prob.model.connect('lpt:bld_inlet:frac_P', pt + '.lpt.bld_inlet:frac_P')
+        prob.model.connect('lpt:bld_exit:frac_P', pt + '.lpt.bld_exit:frac_P')
+        prob.model.connect('bypBld:frac_W', pt + '.byp_bld.bypBld:frac_W')
+        prob.model.connect('tms_q', pt + '.tms_q')
 
-        prob.model.connect('TOC.fan.s_PR', pt+'.fan.s_PR')
-        prob.model.connect('TOC.fan.s_Wc', pt+'.fan.s_Wc')
-        prob.model.connect('TOC.fan.s_eff', pt+'.fan.s_eff')
-        prob.model.connect('TOC.fan.s_Nc', pt+'.fan.s_Nc')
-        prob.model.connect('TOC.lpc.s_PR', pt+'.lpc.s_PR')
-        prob.model.connect('TOC.lpc.s_Wc', pt+'.lpc.s_Wc')
-        prob.model.connect('TOC.lpc.s_eff', pt+'.lpc.s_eff')
-        prob.model.connect('TOC.lpc.s_Nc', pt+'.lpc.s_Nc')
-        prob.model.connect('TOC.hpc.s_PR', pt+'.hpc.s_PR')
-        prob.model.connect('TOC.hpc.s_Wc', pt+'.hpc.s_Wc')
-        prob.model.connect('TOC.hpc.s_eff', pt+'.hpc.s_eff')
-        prob.model.connect('TOC.hpc.s_Nc', pt+'.hpc.s_Nc')
-        prob.model.connect('TOC.hpt.s_PR', pt+'.hpt.s_PR')
-        prob.model.connect('TOC.hpt.s_Wp', pt+'.hpt.s_Wp')
-        prob.model.connect('TOC.hpt.s_eff', pt+'.hpt.s_eff')
-        prob.model.connect('TOC.hpt.s_Np', pt+'.hpt.s_Np')
-        prob.model.connect('TOC.lpt.s_PR', pt+'.lpt.s_PR')
-        prob.model.connect('TOC.lpt.s_Wp', pt+'.lpt.s_Wp')
-        prob.model.connect('TOC.lpt.s_eff', pt+'.lpt.s_eff')
-        prob.model.connect('TOC.lpt.s_Np', pt+'.lpt.s_Np')
+        prob.model.connect('TOC.fan.s_PR', pt + '.fan.s_PR')
+        prob.model.connect('TOC.fan.s_Wc', pt + '.fan.s_Wc')
+        prob.model.connect('TOC.fan.s_eff', pt + '.fan.s_eff')
+        prob.model.connect('TOC.fan.s_Nc', pt + '.fan.s_Nc')
+        prob.model.connect('TOC.lpc.s_PR', pt + '.lpc.s_PR')
+        prob.model.connect('TOC.lpc.s_Wc', pt + '.lpc.s_Wc')
+        prob.model.connect('TOC.lpc.s_eff', pt + '.lpc.s_eff')
+        prob.model.connect('TOC.lpc.s_Nc', pt + '.lpc.s_Nc')
+        prob.model.connect('TOC.hpc.s_PR', pt + '.hpc.s_PR')
+        prob.model.connect('TOC.hpc.s_Wc', pt + '.hpc.s_Wc')
+        prob.model.connect('TOC.hpc.s_eff', pt + '.hpc.s_eff')
+        prob.model.connect('TOC.hpc.s_Nc', pt + '.hpc.s_Nc')
+        prob.model.connect('TOC.hpt.s_PR', pt + '.hpt.s_PR')
+        prob.model.connect('TOC.hpt.s_Wp', pt + '.hpt.s_Wp')
+        prob.model.connect('TOC.hpt.s_eff', pt + '.hpt.s_eff')
+        prob.model.connect('TOC.hpt.s_Np', pt + '.hpt.s_Np')
+        prob.model.connect('TOC.lpt.s_PR', pt + '.lpt.s_PR')
+        prob.model.connect('TOC.lpt.s_Wp', pt + '.lpt.s_Wp')
+        prob.model.connect('TOC.lpt.s_eff', pt + '.lpt.s_eff')
+        prob.model.connect('TOC.lpt.s_Np', pt + '.lpt.s_Np')
 
-        prob.model.connect('TOC.gearbox.gear_ratio', pt+'.gearbox.gear_ratio')
-        prob.model.connect('TOC.core_nozz.Throat:stat:area',pt+'.balance.rhs:W')
+        prob.model.connect('TOC.gearbox.gear_ratio', pt + '.gearbox.gear_ratio')
+        prob.model.connect('TOC.core_nozz.Throat:stat:area', pt + '.balance.rhs:W')
 
-        prob.model.connect('TOC.inlet.Fl_O:stat:area', pt+'.inlet.area')
-        prob.model.connect('TOC.fan.Fl_O:stat:area', pt+'.fan.area')
-        prob.model.connect('TOC.splitter.Fl_O1:stat:area', pt+'.splitter.area1')
-        prob.model.connect('TOC.splitter.Fl_O2:stat:area', pt+'.splitter.area2')
-        prob.model.connect('TOC.duct2.Fl_O:stat:area', pt+'.duct2.area')
-        prob.model.connect('TOC.lpc.Fl_O:stat:area', pt+'.lpc.area')
-        prob.model.connect('TOC.bld25.Fl_O:stat:area', pt+'.bld25.area')
-        prob.model.connect('TOC.duct25.Fl_O:stat:area', pt+'.duct25.area')
-        prob.model.connect('TOC.hpc.Fl_O:stat:area', pt+'.hpc.area')
-        prob.model.connect('TOC.bld3.Fl_O:stat:area', pt+'.bld3.area')
-        prob.model.connect('TOC.burner.Fl_O:stat:area', pt+'.burner.area')
-        prob.model.connect('TOC.hpt.Fl_O:stat:area', pt+'.hpt.area')
-        prob.model.connect('TOC.duct45.Fl_O:stat:area', pt+'.duct45.area')
-        prob.model.connect('TOC.lpt.Fl_O:stat:area', pt+'.lpt.area')
-        prob.model.connect('TOC.duct5.Fl_O:stat:area', pt+'.duct5.area')
-        prob.model.connect('TOC.byp_bld.Fl_O:stat:area', pt+'.byp_bld.area')
-        prob.model.connect('TOC.byp_splitter.Fl_O1:stat:area', pt+'.byp_splitter.area1')
+        prob.model.connect('TOC.inlet.Fl_O:stat:area', pt + '.inlet.area')
+        prob.model.connect('TOC.fan.Fl_O:stat:area', pt + '.fan.area')
+        prob.model.connect('TOC.splitter.Fl_O1:stat:area', pt + '.splitter.area1')
+        prob.model.connect('TOC.splitter.Fl_O2:stat:area', pt + '.splitter.area2')
+        prob.model.connect('TOC.duct2.Fl_O:stat:area', pt + '.duct2.area')
+        prob.model.connect('TOC.lpc.Fl_O:stat:area', pt + '.lpc.area')
+        prob.model.connect('TOC.bld25.Fl_O:stat:area', pt + '.bld25.area')
+        prob.model.connect('TOC.duct25.Fl_O:stat:area', pt + '.duct25.area')
+        prob.model.connect('TOC.hpc.Fl_O:stat:area', pt + '.hpc.area')
+        prob.model.connect('TOC.bld3.Fl_O:stat:area', pt + '.bld3.area')
+        prob.model.connect('TOC.burner.Fl_O:stat:area', pt + '.burner.area')
+        prob.model.connect('TOC.hpt.Fl_O:stat:area', pt + '.hpt.area')
+        prob.model.connect('TOC.duct45.Fl_O:stat:area', pt + '.duct45.area')
+        prob.model.connect('TOC.lpt.Fl_O:stat:area', pt + '.lpt.area')
+        prob.model.connect('TOC.duct5.Fl_O:stat:area', pt + '.duct5.area')
+        prob.model.connect('TOC.byp_bld.Fl_O:stat:area', pt + '.byp_bld.area')
+        prob.model.connect('TOC.byp_splitter.Fl_O1:stat:area', pt + '.byp_splitter.area1')
         prob.model.connect('TOC.byp_splitter.Fl_O2:stat:area', pt + '.byp_splitter.area2')
-        prob.model.connect('TOC.HXduct.Fl_O:stat:area', pt+'.HXduct.area')
-        prob.model.connect('TOC.duct17.Fl_O:stat:area', pt+'.duct17.area')
-        prob.model.connect('TOC.mixer_duct.Fl_O:stat:area', pt+'.mixer_duct.area')
-        prob.model.connect('TOC.byp_mixer.Fl_O:stat:area', pt+'.byp_mixer.area')
-        prob.model.connect('TOC.byp_mixer.Fl_I1_calc:stat:area', pt+'.byp_mixer.Fl_I1_stat_calc.area')
-
+        prob.model.connect('TOC.HXduct.Fl_O:stat:area', pt + '.HXduct.area')
+        prob.model.connect('TOC.duct17.Fl_O:stat:area', pt + '.duct17.area')
+        prob.model.connect('TOC.mixer_duct.Fl_O:stat:area', pt + '.mixer_duct.area')
+        prob.model.connect('TOC.byp_mixer.Fl_O:stat:area', pt + '.byp_mixer.area')
+        prob.model.connect('TOC.byp_mixer.Fl_I1_calc:stat:area', pt + '.byp_mixer.Fl_I1_stat_calc.area')
 
     prob.model.connect('RTO.balance.hpt_chrg_cool_frac', 'TOC.bld3.bld_exit:frac_W')
     prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'TOC.bld3.bld_inlet:frac_W')
@@ -751,14 +756,13 @@ if __name__ == "__main__":
 
     prob.model.add_subsystem('T4_ratio',
                              om.ExecComp('TOC_T4 = RTO_T4*TR',
-                                         RTO_T4={'value': 3400.0, 'units':'degR'},
-                                         TOC_T4={'value': 3150.0, 'units':'degR'},
+                                         RTO_T4={'value': 3400.0, 'units': 'degR'},
+                                         TOC_T4={'value': 3150.0, 'units': 'degR'},
                                          TR={'value': 0.926470588, 'units': None}))
-    prob.model.connect('RTO:T4max','T4_ratio.RTO_T4')
+    prob.model.connect('RTO:T4max', 'T4_ratio.RTO_T4')
     prob.model.connect('T4_ratio.TOC_T4', 'TOC.balance.rhs:FAR')
     prob.model.connect('TR', 'T4_ratio.TR')
     prob.model.set_order(['des_vars', 'T4_ratio', 'TOC', 'RTO', 'CRZ', 'SLS'])
-
 
     newton = prob.model.nonlinear_solver = om.NewtonSolver()
     newton.options['atol'] = 1e-6
@@ -769,18 +773,17 @@ if __name__ == "__main__":
     newton.options['max_sub_solves'] = 10
     newton.options['err_on_non_converge'] = True
     newton.options['reraise_child_analysiserror'] = False
-    newton.linesearch =  om.BoundsEnforceLS()
+    newton.linesearch = om.BoundsEnforceLS()
     newton.linesearch.options['bound_enforcement'] = 'scalar'
     newton.linesearch.options['iprint'] = -1
 
     prob.model.linear_solver = om.DirectSolver(assemble_jac=True)
 
-
     # setup the optimization
     prob.driver = om.pyOptSparseDriver()
     prob.driver.options['optimizer'] = 'SNOPT'
     prob.driver.options['debug_print'] = ['desvars', 'nl_cons', 'objs']
-    prob.driver.opt_settings={'Major step limit': 0.05}
+    prob.driver.opt_settings = {'Major step limit': 0.05}
 
     prob.model.add_design_var('fan:PRdes', lower=1.20, upper=1.4)
     prob.model.add_design_var('lpc:PRdes', lower=2.0, upper=4.0)
@@ -799,7 +802,7 @@ if __name__ == "__main__":
     prob['RTO.hpt_cooling.x_factor'] = 0.9
 
     # set the thermal management system value for heat in and out of ducts
-    prob['tms_q'] = 189.56 # units: Btu/s
+    prob['tms_q'] = heat_out  # units: Btu/s
 
     # initial guesses
     prob['TOC.balance.FAR'] = 0.02650
@@ -811,64 +814,77 @@ if __name__ == "__main__":
     for pt in pts:
 
         if pt == 'RTO':
-            prob[pt+'.balance.FAR'] = 0.02832
-            prob[pt+'.balance.W'] = 1916.13
-            prob[pt+'.balance.BPR'] = 25.5620
-            prob[pt+'.balance.fan_Nmech'] = 2132.6
-            prob[pt+'.balance.lp_Nmech'] = 6611.2
-            prob[pt+'.balance.hp_Nmech'] = 22288.2
-            prob[pt+'.fc.balance.Pt'] = 15.349
-            prob[pt+'.fc.balance.Tt'] = 552.49
-            prob[pt+'.hpt.PR'] = 4.210
-            prob[pt+'.lpt.PR'] = 8.161
-            prob[pt+'.fan.map.RlineMap'] = 1.7500
-            prob[pt+'.lpc.map.RlineMap'] = 2.0052
-            prob[pt+'.hpc.map.RlineMap'] = 2.0589
-            prob[pt+'.gearbox.trq_base'] = 52509.1
+            prob[pt + '.balance.FAR'] = 0.02832
+            prob[pt + '.balance.W'] = 1916.13
+            prob[pt + '.balance.BPR'] = 25.5620
+            prob[pt + '.balance.fan_Nmech'] = 2132.6
+            prob[pt + '.balance.lp_Nmech'] = 6611.2
+            prob[pt + '.balance.hp_Nmech'] = 22288.2
+            prob[pt + '.fc.balance.Pt'] = 15.349
+            prob[pt + '.fc.balance.Tt'] = 552.49
+            prob[pt + '.hpt.PR'] = 4.210
+            prob[pt + '.lpt.PR'] = 8.161
+            prob[pt + '.fan.map.RlineMap'] = 1.7500
+            prob[pt + '.lpc.map.RlineMap'] = 2.0052
+            prob[pt + '.hpc.map.RlineMap'] = 2.0589
+            prob[pt + '.gearbox.trq_base'] = 52509.1
 
         if pt == 'SLS':
-            prob[pt+'.balance.FAR'] = 0.02541
-            prob[pt+'.balance.W'] = 2000. #1734.44
-            prob[pt+'.balance.BPR'] = 27.3467
-            prob[pt+'.balance.fan_Nmech'] = 1953.1
-            prob[pt+'.balance.lp_Nmech'] = 6054.5
-            prob[pt+'.balance.hp_Nmech'] = 21594.0
-            prob[pt+'.fc.balance.Pt'] = 14.696
-            prob[pt+'.fc.balance.Tt'] = 545.67
-            prob[pt+'.hpt.PR'] = 4.245
-            prob[pt+'.lpt.PR'] = 7.001
-            prob[pt+'.fan.map.RlineMap'] = 1.7500
-            prob[pt+'.lpc.map.RlineMap'] = 1.8632
-            prob[pt+'.hpc.map.RlineMap'] = 2.0281
-            prob[pt+'.gearbox.trq_base'] = 41779.4
+            prob[pt + '.balance.FAR'] = 0.02541
+            prob[pt + '.balance.W'] = 2000.  # 1734.44
+            prob[pt + '.balance.BPR'] = 27.3467
+            prob[pt + '.balance.fan_Nmech'] = 1953.1
+            prob[pt + '.balance.lp_Nmech'] = 6054.5
+            prob[pt + '.balance.hp_Nmech'] = 21594.0
+            prob[pt + '.fc.balance.Pt'] = 14.696
+            prob[pt + '.fc.balance.Tt'] = 545.67
+            prob[pt + '.hpt.PR'] = 4.245
+            prob[pt + '.lpt.PR'] = 7.001
+            prob[pt + '.fan.map.RlineMap'] = 1.7500
+            prob[pt + '.lpc.map.RlineMap'] = 1.8632
+            prob[pt + '.hpc.map.RlineMap'] = 2.0281
+            prob[pt + '.gearbox.trq_base'] = 41779.4
 
         if pt == 'CRZ':
-            prob[pt+'.balance.FAR'] = 0.02510
-            prob[pt+'.balance.W'] = 802.79
-            prob[pt+'.balance.BPR'] = 24.3233
-            prob[pt+'.balance.fan_Nmech'] = 2118.7
-            prob[pt+'.balance.lp_Nmech'] = 6567.9
-            prob[pt+'.balance.hp_Nmech'] = 20574.1
-            prob[pt+'.fc.balance.Pt'] = 5.272
-            prob[pt+'.fc.balance.Tt'] = 444.41
-            prob[pt+'.hpt.PR'] = 4.197
-            prob[pt+'.lpt.PR'] = 10.803
-            prob[pt+'.fan.map.RlineMap'] = 1.9397
-            prob[pt+'.lpc.map.RlineMap'] = 2.1075
-            prob[pt+'.hpc.map.RlineMap'] = 1.9746
-            prob[pt+'.gearbox.trq_base'] = 22369.7
-
-
+            prob[pt + '.balance.FAR'] = 0.02510
+            prob[pt + '.balance.W'] = 802.79
+            prob[pt + '.balance.BPR'] = 24.3233
+            prob[pt + '.balance.fan_Nmech'] = 2118.7
+            prob[pt + '.balance.lp_Nmech'] = 6567.9
+            prob[pt + '.balance.hp_Nmech'] = 20574.1
+            prob[pt + '.fc.balance.Pt'] = 5.272
+            prob[pt + '.fc.balance.Tt'] = 444.41
+            prob[pt + '.hpt.PR'] = 4.197
+            prob[pt + '.lpt.PR'] = 10.803
+            prob[pt + '.fan.map.RlineMap'] = 1.9397
+            prob[pt + '.lpc.map.RlineMap'] = 2.1075
+            prob[pt + '.hpc.map.RlineMap'] = 1.9746
+            prob[pt + '.gearbox.trq_base'] = 22369.7
 
     st = time.time()
+
+    probRec = om.SqliteRecorder("/Volumes/LamboDrive/UMich/Summer_2020/Data_Output/N3heatSweepData_" + str(int(heat_out)) + ".sql")
+    prob.add_recorder(probRec)
 
     prob.set_solver_print(level=-1)
     prob.set_solver_print(level=2, depth=1)
     prob.run_model()
 
-    for pt in ['TOC']+pts:
+    for pt in ['TOC'] + pts:
         viewer(prob, pt)
 
+    prob.record(case_name='heatSweep')
     print("time", time.time() - st)
 
-    exit()
+    # exit()
+
+
+
+
+
+if __name__ == "__main__":
+
+    heatSweep = [0.0, 100.0, 200.0,300.0,400.0,500.0,600.0,700.0,800.0,900.0,1000.0]  # units = Btu/s
+    for val in heatSweep:
+        run_model(val)
+
