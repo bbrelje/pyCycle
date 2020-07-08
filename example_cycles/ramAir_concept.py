@@ -27,17 +27,14 @@ class RamAir(om.Group):
         """
         Sets up the ram-air model following the steps listed below:
 
-        1) Specifies the thermal data for the jet-fuel
-        2) Adds subsystems to the model
-        3) Connects the flow stations
-        4) Connects the performance elements
-        5) Connects the heat transfer elements
-        6) Specifies the solver order
-        7) Adds balances to the model
-        8) Implements the solvers
+        1) Adds subsystems to the model
+        2) Connects the flow stations
+        3) Connects the performance elements
+        4) Connects the heat transfer elements
+        5) Specifies the solver order
+        6) Adds balances to the model
+        7) Implements the solvers
         """
-        # --- Specify the thermal properties for the jet-fuel used ---
-        thermo_spec = pyc.species_data.janaf
 
         # --- Specify the design case from the options dict ---
         design = self.options['design']
@@ -48,18 +45,18 @@ class RamAir(om.Group):
                                                         q_in={'units':'Btu/s'}),
                            promotes_inputs=['tms_q'])
         # Inlet
-        self.add_subsystem('fc', pyc.FlightConditions(thermo_data=thermo_spec, elements=pyc.AIR_MIX))
-        self.add_subsystem('inlet', pyc.Inlet(design=design, thermo_data=thermo_spec, elements=pyc.AIR_MIX))
+        self.add_subsystem('fc', pyc.FlightConditions(elements=pyc.AIR_MIX))
+        self.add_subsystem('inlet', pyc.Inlet(design=design, elements=pyc.AIR_MIX))
 
         # Inlet to nozzle duct
-        self.add_subsystem('duct', pyc.Duct(design=design,thermo_data=thermo_spec, elements=pyc.AIR_MIX))
+        self.add_subsystem('duct', pyc.Duct(design=design, elements=pyc.AIR_MIX))
 
         # Nozzle
         self.add_subsystem('nozz',
-                           pyc.Nozzle(nozzType='CV', lossCoef='Cv', thermo_data=thermo_spec, elements=pyc.AIR_MIX))
+                           pyc.Nozzle(nozzType='CV', lossCoef='Cv', elements=pyc.AIR_MIX))
 
         # Performance
-        self.add_subsystem('perf', pyc.Performance(num_nozzles=1, num_burners=1))
+        self.add_subsystem('perf', pyc.Performance(num_nozzles=1, num_burners=0))
 
         # --- Connect flow stations ---
         pyc.connect_flow(self, 'fc.Fl_O', 'inlet.Fl_I', connect_w=False)
@@ -117,10 +114,10 @@ def viewer(prob, pt, file=sys.stdout):
     print("                              POINT:", pt, file=file, flush=True)
     print("----------------------------------------------------------------------------", file=file, flush=True)
     print("                       PERFORMANCE CHARACTERISTICS", file=file, flush=True)
-    print("    Mach      Alt       W      Fn      Fg    Fram     OPR     TSFC  ", file=file, flush=True)
-    print(" %7.5f  %7.1f %7.3f %7.1f %7.1f %7.1f %7.3f  %7.5f" % (
+    print("    Mach      Alt       W      Fn      Fg    Fram     OPR", file=file, flush=True)
+    print(" %7.5f  %7.1f %7.3f %7.1f %7.1f %7.1f %7.3f" % (
     prob[pt + '.fc.Fl_O:stat:MN'], prob[pt + '.fc.alt'], prob[pt + '.inlet.Fl_O:stat:W'], prob[pt + '.perf.Fn'],
-    prob[pt + '.perf.Fg'], prob[pt + '.inlet.F_ram'], prob[pt + '.perf.OPR'], prob[pt + '.perf.TSFC']),
+    prob[pt + '.perf.Fg'], prob[pt + '.inlet.F_ram'], prob[pt + '.perf.OPR']),
           file=file, flush=True)
 
     # print duct heat transfer values
