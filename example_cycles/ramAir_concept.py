@@ -147,10 +147,10 @@ if __name__ == "__main__":
 
     des_vars.add_output('alt', 35000.0, units='ft'),
     des_vars.add_output('MN', 0.8),
-    des_vars.add_output('Fn_des', 11800.0, units='lbf'),
-    des_vars.add_output('duct:dPqP', 0.0150),
+    des_vars.add_output('Fn_des', 300.0, units='lbf'),
+    des_vars.add_output('duct:dPqP', 0.02),
     des_vars.add_output('nozz:Cv', 0.99),
-    des_vars.add_output('inlet:MN_out', 0.60),
+    des_vars.add_output('inlet:MN_out', 0.6),
     des_vars.add_output('tms_q')
 
     # Create design instance of model
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     prob['DESIGN.fc.balance.Tt'] = 518.665288153
 
     # set the thermal management system value for heat in and out of ducts
-    prob['tms_q'] = 100000.0  # units: Btu/s
+    prob['tms_q'] = 10000.0  # units: Btu/s
 
     st = time.time()
 
