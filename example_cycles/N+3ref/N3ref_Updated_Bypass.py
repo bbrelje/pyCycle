@@ -1,3 +1,4 @@
+# --- imports ---
 import sys
 import numpy as np
 import pickle
@@ -15,15 +16,28 @@ from N3_LPT_map import LPTMap
 
 
 class N3(om.Group):
-
+    """
+    OpenMDAO group for the N+3 engine cycle
+    """
     def initialize(self):
+        """
+        Initialize the N+3 cycle with design and cooling options
+        Returns
+        -------
+
+        """
         self.options.declare('design', default=True,
                               desc='Switch between on-design and off-design calculation.')
         self.options.declare('cooling', default=False,
                               desc='If True, calculate cooling flow values.')
 
     def setup(self):
+        """
+        Setup the N+3 cycle and connect all subsystems and flows
+        Returns
+        -------
 
+        """
         # specify the thermal properties for the jet-fuel used
         thermo_spec = pyc.species_data.janaf
 
@@ -343,6 +357,22 @@ class N3(om.Group):
         self.linear_solver = om.DirectSolver(assemble_jac=True)
 
 def dump_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, filename, OTHER_PARMS=None):
+    """
+
+    Parameters
+    ----------
+    prob: openMDAO problem
+    DPARMS
+    ODPARMS
+    DNAME
+    ODNAMES
+    filename
+    OTHER_PARMS
+
+    Returns
+    -------
+
+    """
     guess_dict = dict()
     guess_dict[DNAME] = dict()
     for odname in ODNAMES:
@@ -362,6 +392,22 @@ def dump_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, filename, OTHER_PARMS=None
         pickle.dump(guess_dict, fh, protocol=pickle.HIGHEST_PROTOCOL)
     
 def load_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, filename, OTHER_PARMS=None):
+    """
+
+    Parameters
+    ----------
+    prob: openMDAO problem
+    DPARMS
+    ODPARMS
+    DNAME
+    ODNAMES
+    filename
+    OTHER_PARMS
+
+    Returns
+    -------
+
+    """
     with open(filename, 'rb') as fh:
         guess_dict = pickle.load(fh)
     for dparm in DPARMS:
@@ -376,18 +422,16 @@ def load_guess(prob, DPARMS, ODPARMS, DNAME, ODNAMES, filename, OTHER_PARMS=None
 def viewer(prob, pt, file=sys.stdout):
     """
     print a report of all the relevant cycle properties
-    """
+    Parameters
+    ----------
+    prob: openmdao problem
+    pt: The flight condition point (i.e. TOC, RTO, CRZ, SLS, ...)
+    file: The file containing the engine output
 
-    # if pt == 'DESIGN':
-    #     MN = prob['DESIGN.fc.Fl_O:stat:MN']
-    #     LPT_PR = prob['DESIGN.balance.lpt_PR']
-    #     HPT_PR = prob['DESIGN.balance.hpt_PR']
-    #     FAR = prob['DESIGN.balance.FAR']
-    # else:
-    #     MN = prob[pt+'.fc.Fl_O:stat:MN']
-    #     LPT_PR = prob[pt+'.lpt.PR']
-    #     HPT_PR = prob[pt+'.hpt.PR']
-    #     FAR = prob[pt+'.balance.FAR']
+    Returns
+    -------
+
+    """
 
     print(file=file, flush=True)
     print(file=file, flush=True)
@@ -442,8 +486,18 @@ def viewer(prob, pt, file=sys.stdout):
     bleed_full_names = [f'{pt}.{b}' for b in bleed_names]
     pyc.print_bleed(prob, bleed_full_names, file=file)
 
-def run_model(heat_out):
+def run_model(heat_out, record = False):
+    """
+    Encapsulated method for running the N+3 engine
+    Parameters
+    ----------
+    heat_out: float, The heat being taken out of the turbine exhaust
+    record: bool, default = False, Set to true in order to record model data using sql
 
+    Returns
+    -------
+
+    """
     import time
 
     prob = om.Problem()
@@ -863,8 +917,10 @@ def run_model(heat_out):
 
     st = time.time()
 
-    probRec = om.SqliteRecorder("/Volumes/LamboDrive/UMich/Summer_2020/Data_Output/N3heatSweepData_" + str(int(heat_out)) + ".sql")
-    prob.add_recorder(probRec)
+    if record:
+        probRec = om.SqliteRecorder("/Volumes/LamboDrive/UMich/Summer_2020/Data_Output/raw/N3heatSweepData_" +
+                                    str(int(heat_out)) + ".sql")
+        prob.add_recorder(probRec)
 
     prob.set_solver_print(level=-1)
     prob.set_solver_print(level=2, depth=1)
@@ -873,18 +929,27 @@ def run_model(heat_out):
     for pt in ['TOC'] + pts:
         viewer(prob, pt)
 
-    prob.record(case_name='heatSweep')
+    if record:
+        prob.record(case_name='heatSweep')
     print("time", time.time() - st)
 
-    # exit()
+    if not record:
+        exit()
 
 
+def heat_transfer_sweep():
+    """
+    Runs a sweep of heat transfer values
+    Returns
+    -------
 
+    """
+    heatSweep = [0.0, 100.0, 200.0,300.0,400.0,500.0,600.0,700.0,800.0,900.0,1000.0]  # units = Btu/s
+    for val in heatSweep:
+        run_model(val, record=True)
 
 
 if __name__ == "__main__":
 
-    heatSweep = [0.0, 100.0, 200.0,300.0,400.0,500.0,600.0,700.0,800.0,900.0,1000.0]  # units = Btu/s
-    for val in heatSweep:
-        run_model(val)
+    run_model(100.0)
 
