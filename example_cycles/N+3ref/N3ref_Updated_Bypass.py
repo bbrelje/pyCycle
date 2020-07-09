@@ -918,7 +918,7 @@ def run_model(heat_out, record = False):
     st = time.time()
 
     if record:
-        probRec = om.SqliteRecorder("/Volumes/LamboDrive/UMich/Summer_2020/Data_Output/raw/N3heatSweepData_" +
+        probRec = om.SqliteRecorder("/Volumes/LamboDrive/UMich/Summer_2020/N+3Hybrid/Data_Output/raw/N3heatSweepData_" +
                                     str(int(heat_out)) + ".sql")
         prob.add_recorder(probRec)
 
