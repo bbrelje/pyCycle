@@ -1,8 +1,8 @@
-# --- Python 3.8 ---
-# FileName: thermal.py
-# Created by: alamkin
-# Date: 7/9/20
-# Last Updated: 7:20 PM
+# Filename: thermal.py
+# Written by Eytan Adler and Ben Brelje
+# Repo Link:  https://github.com/eytanadler/openconcept/blob/heatengine/openconcept/components/thermal.py
+# Date: 07/10/20
+# pyCycle implementation by Andrew Lamkin
 
 # --- Imports ---
 from __future__ import division
@@ -14,6 +14,13 @@ import scipy.sparse as sp
 import sys, os
 
 sys.path.insert(0, os.getcwd())
+from openconcept.components.ducts import ImplicitCompressibleDuct
+from openconcept.components.motor import SimpleMotor
+from openconcept.utilities.math.integrals import Integrator
+from openconcept.utilities.math.derivatives import FirstDerivative
+from openconcept.utilities.math import AddSubtractComp, ElementMultiplyDivideComp, VectorConcatenateComp, \
+    VectorSplitComp
+from openconcept.analysis.atmospherics.compute_atmos_props import ComputeAtmosphericProperties
 
 """Analysis routines for simulating thermal management of aircraft components"""
 
@@ -695,3 +702,66 @@ class LiquidCoolantTestGroup(Group):
             self.connect('mdot_coolant', ['component.mdot_coolant', 'duct.mdot_hot', 'reservoir.mdot_coolant'])
             self.connect('T_motor_initial', 'component.T_initial')
             self.connect('T_res_initial', 'reservoir.T_initial')
+
+
+if __name__ == '__main__':
+    # run this script from the root openconcept directory like so:
+    # python .\openconcept\components\ducts.py
+    quasi_steady = False
+    nn = 11
+    prob = Problem(LiquidCoolantTestGroup(quasi_steady=quasi_steady, num_nodes=nn))
+    prob.model.options['assembled_jac_type'] = 'csc'
+    prob.model.nonlinear_solver = NewtonSolver(iprint=2)
+    prob.model.linear_solver = DirectSolver(assemble_jac=True)
+    prob.model.nonlinear_solver.options['solve_subsystems'] = True
+    prob.model.nonlinear_solver.options['maxiter'] = 20
+    prob.model.nonlinear_solver.options['atol'] = 1e-8
+    prob.model.nonlinear_solver.options['rtol'] = 1e-8
+    prob.model.nonlinear_solver.linesearch = BoundsEnforceLS(bound_enforcement='scalar', print_bound_enforce=True)
+
+    prob.setup(check=True, force_alloc_complex=True)
+
+    prob.run_model()
+    # print(prob['duct.inlet.M'])
+    print(np.max(prob['component.T'] - 273.15))
+    print(np.max(-prob['duct.force.F_net']))
+
+    prob.check_partials(method='cs', compact_print=True)
+
+    # prob.model.list_outputs(units=True, print_arrays=True)
+    if quasi_steady:
+        np.save('quasi_steady', prob['component.T'])
+
+    # prob.run_driver()
+    # prob.model.list_inputs(units=True)
+    t = np.linspace(0, 800, nn) / 60
+
+    import matplotlib.pyplot as plt
+
+    plt.figure()
+    plt.plot(t, prob['component.T'] - 273.15)
+    plt.xlabel('time (min)')
+    plt.ylabel('motor temp (C)')
+    plt.figure()
+    plt.plot(prob['fltcond|h'], prob['component.T'] - 273.15)
+    plt.xlabel('altitude (ft)')
+    plt.ylabel('motor temp (C)')
+    plt.figure()
+    plt.plot(t, prob['duct.inlet.M'])
+    plt.xlabel('Mach number')
+    plt.ylabel('steady state motor temp (C)')
+    plt.figure()
+    plt.plot(prob['duct.inlet.M'], prob['duct.force.F_net'])
+    plt.xlabel('M_inf')
+    plt.ylabel('drag N')
+    plt.figure()
+    plt.plot(prob['duct.inlet.M'], prob['duct.mdot'] / prob['atmos.fltcond|rho'] / prob.get_val('atmos.fltcond|Utrue',
+                                                                                                units='m/s') / prob.get_val(
+        'duct.area_nozzle', units='m**2'))
+    plt.xlabel('M_inf')
+    plt.ylabel('mdot / rho / U / A_nozzle')
+    plt.figure()
+    plt.plot(prob['duct.inlet.M'], prob['duct.nozzle.M'])
+    plt.xlabel('M_inf')
+    # plt.ylabel('M_nozzle')
+    plt.show()

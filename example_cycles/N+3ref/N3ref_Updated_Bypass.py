@@ -46,16 +46,21 @@ class N3(om.Group):
         cooling = self.options['cooling']
 
         # --- Add subsystems to the design ---
-        # Heat Transfer components
-        self.add_subsystem('carnot', om.ExecComp(['carnot_eff =1 - ( t_c / t_h )'],
-                                                 t_c={'units':'degR'},
-                                                 t_h={'units':'degR'}))
+        # Heat Engine component
+        self.add_subsystem('heat_engine', pyc.SimpleEngine())
 
-        self.add_subsystem('heat_transfer', om.ExecComp(['q_out=-tms_q', 'q_in=tms_q * ((1-0.4)*carnot_eff)'],
-                                                        carnot_eff={'value':0.0},
-                                                        q_out={'units':'Btu/s'},
-                                                        q_in={'units':'Btu/s'}),
-                           promotes_inputs=['tms_q'])
+        # TODO: Remove old heat transfer exec comps once heat engine is working
+        # Heat Transfer components
+        # self.add_subsystem('carnot', om.ExecComp(['carnot_eff =1 - ( t_c / t_h )'],
+        #                                          t_c={'units':'degR'},
+        #                                          t_h={'units':'degR'}))
+        #
+        # self.add_subsystem('heat_transfer', om.ExecComp(['q_out=-tms_q', 'q_in=tms_q * ((1-0.4)*carnot_eff)'],
+        #                                                 carnot_eff={'value':0.0},
+        #                                                 q_out={'units':'Btu/s'},
+        #                                                 q_in={'units':'Btu/s'}),
+        #                    promotes_inputs=['tms_q'])
+
         # Inlet Components
         self.add_subsystem('fc', pyc.FlightConditions(thermo_data=thermo_spec, elements=pyc.AIR_MIX))
         self.add_subsystem('inlet', pyc.Inlet(design=design, thermo_data=thermo_spec, elements=pyc.AIR_MIX))
@@ -145,25 +150,30 @@ class N3(om.Group):
                         byp_Cv={'value':0.98, 'units':None},
                         ER={'value':1.4, 'units':None}))
 
+        # TODO: remove old heat transfer connections
         # Heat Transfer connections
-        self.connect('heat_transfer.q_out', 'duct5.Q_dot')
-        self.connect('heat_transfer.q_in', 'HXduct.Q_dot')
-        self.connect('lpt.Fl_O:tot:T', 'carnot.t_h')
-        self.connect('byp_splitter.Fl_O1:tot:T', 'carnot.t_c')
-        self.connect('carnot.carnot_eff', 'heat_transfer.carnot_eff')
+        # self.connect('heat_transfer.q_out', 'duct5.Q_dot')
+        # self.connect('heat_transfer.q_in', 'HXduct.Q_dot')
+        # self.connect('lpt.Fl_O:tot:T', 'carnot.t_h')
+        # self.connect('byp_splitter.Fl_O1:tot:T', 'carnot.t_c')
+        # self.connect('carnot.carnot_eff', 'heat_transfer.carnot_eff')
+        self.connect('heat_engine.q_h', 'duct5.Q_dot')
+        self.connect('heat_engine.q_c', 'HXduct.Q_dot')
+        self.connect('lpt.Fl_O:tot:T', 'heat_engine.T_h')
+        self.connect('byp_splitter.Fl_O1:tot:T', 'heat_engine.T_c')
 
 
         self.connect('core_nozz.ideal_flow.V', 'ext_ratio.core_V_ideal')
         self.connect('byp_nozz.ideal_flow.V', 'ext_ratio.byp_V_ideal')
 
 
-        main_order = ['carnot','heat_transfer','fc', 'motor', 'motor_power', 'inlet', 'fan',
+        main_order = ['fc', 'motor', 'motor_power', 'inlet', 'fan',
                       'splitter', 'duct2', 'lpc', 'bld25', 'duct25',
                       'hpc', 'bld3', 'burner', 'hpt', 'duct45',
                       'lpt', 'duct5', 'core_nozz','byp_splitter',
                       'HXduct', 'byp_bld','duct17', 'byp_mixer', 'mixer_duct',
                       'byp_nozz','gearbox', 'fan_shaft', 'lp_shaft', 'hp_shaft',
-                      'perf', 'ext_ratio']
+                      'heat_engine', 'perf', 'ext_ratio']
 
         # Add balance components to close the implicit components
         balance = self.add_subsystem('balance', om.BalanceComp())
@@ -575,7 +585,10 @@ def run_model(heat_out, record = False):
     des_vars.add_output('duct17:MN_out', 0.45),
     des_vars.add_output('HXduct:MN_out', 0.45),
     des_vars.add_output('mixer_duct:MN_out', 0.45),
-    des_vars.add_output('tms_q')
+    # TODO: remove tms_q references once old heat transfer is removed
+    # des_vars.add_output('tms_q')
+    des_vars.add_output('heat_engine:Wdot', units='W')
+    des_vars.add_output('heat_engine:eff_factor')
 
     # POINT 1: Top-of-climb (TOC)
     des_vars.add_output('TOC:alt', 35000., units='ft'),
@@ -698,7 +711,9 @@ def run_model(heat_out, record = False):
     prob.model.connect('duct17:MN_out', 'TOC.duct17.MN')
     prob.model.connect('HXduct:MN_out', 'TOC.HXduct.MN')
     prob.model.connect('mixer_duct:MN_out', 'TOC.mixer_duct.MN')
-    prob.model.connect('tms_q', 'TOC.tms_q')
+    # prob.model.connect('tms_q', 'TOC.tms_q')
+    prob.model.connect('heat_engine:Wdot', 'TOC.heat_engine.Wdot')
+    prob.model.connect('heat_engine:eff_factor', 'TOC.heat_engine.eff_factor')
 
     # OTHER POINTS (OFF-DESIGN)
     pts = ['RTO', 'SLS', 'CRZ']
@@ -744,7 +759,9 @@ def run_model(heat_out, record = False):
         prob.model.connect('lpt:bld_inlet:frac_P', pt + '.lpt.bld_inlet:frac_P')
         prob.model.connect('lpt:bld_exit:frac_P', pt + '.lpt.bld_exit:frac_P')
         prob.model.connect('bypBld:frac_W', pt + '.byp_bld.bypBld:frac_W')
-        prob.model.connect('tms_q', pt + '.tms_q')
+        # prob.model.connect('tms_q', pt + '.tms_q')
+        prob.model.connect('heat_engine:Wdot', pt + '.heat_engine.Wdot')
+        prob.model.connect('heat_engine:eff_factor', pt + '.heat_engine.eff_factor')
 
         prob.model.connect('TOC.fan.s_PR', pt + '.fan.s_PR')
         prob.model.connect('TOC.fan.s_Wc', pt + '.fan.s_Wc')
@@ -856,7 +873,9 @@ def run_model(heat_out, record = False):
     prob['RTO.hpt_cooling.x_factor'] = 0.9
 
     # set the thermal management system value for heat in and out of ducts
-    prob['tms_q'] = heat_out  # units: Btu/s
+    # prob['tms_q'] = heat_out  # units: Btu/s
+    prob['heat_engine:Wdot'] = heat_out # units: W
+    prob['heat_engine:eff_factor'] = 0.4
 
     # initial guesses
     prob['TOC.balance.FAR'] = 0.02650
@@ -951,5 +970,5 @@ def heat_transfer_sweep():
 
 if __name__ == "__main__":
 
-    run_model(100.0)
+    run_model(100.0e3)
 
