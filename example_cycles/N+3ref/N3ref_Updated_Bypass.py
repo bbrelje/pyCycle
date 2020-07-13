@@ -49,17 +49,10 @@ class N3(om.Group):
         # Heat Engine component
         self.add_subsystem('heat_engine', pyc.SimpleEngine())
 
-        # TODO: Remove old heat transfer exec comps once heat engine is working
-        # Heat Transfer components
-        # self.add_subsystem('carnot', om.ExecComp(['carnot_eff =1 - ( t_c / t_h )'],
-        #                                          t_c={'units':'degR'},
-        #                                          t_h={'units':'degR'}))
-        #
-        # self.add_subsystem('heat_transfer', om.ExecComp(['q_out=-tms_q', 'q_in=tms_q * ((1-0.4)*carnot_eff)'],
-        #                                                 carnot_eff={'value':0.0},
-        #                                                 q_out={'units':'Btu/s'},
-        #                                                 q_in={'units':'Btu/s'}),
-        #                    promotes_inputs=['tms_q'])
+        # Heat transfer correction component
+        self.add_subsystem('heat_transfer', om.ExecComp(['q_out = -q_heat'],
+                                                        q_out={'units': 'W'},
+                                                        q_heat={'units':'W'}))
 
         # Inlet Components
         self.add_subsystem('fc', pyc.FlightConditions(thermo_data=thermo_spec, elements=pyc.AIR_MIX))
@@ -150,14 +143,9 @@ class N3(om.Group):
                         byp_Cv={'value':0.98, 'units':None},
                         ER={'value':1.4, 'units':None}))
 
-        # TODO: remove old heat transfer connections
-        # Heat Transfer connections
-        # self.connect('heat_transfer.q_out', 'duct5.Q_dot')
-        # self.connect('heat_transfer.q_in', 'HXduct.Q_dot')
-        # self.connect('lpt.Fl_O:tot:T', 'carnot.t_h')
-        # self.connect('byp_splitter.Fl_O1:tot:T', 'carnot.t_c')
-        # self.connect('carnot.carnot_eff', 'heat_transfer.carnot_eff')
-        self.connect('heat_engine.q_h', 'duct5.Q_dot')
+        # Connect heat transfer and heat engine components
+        self.connect('heat_engine.q_h', 'heat_transfer.q_heat')
+        self.connect('heat_transfer.q_out', 'duct5.Q_dot')
         self.connect('heat_engine.q_c', 'HXduct.Q_dot')
         self.connect('lpt.Fl_O:tot:T', 'heat_engine.T_h')
         self.connect('byp_splitter.Fl_O1:tot:T', 'heat_engine.T_c')
@@ -173,7 +161,7 @@ class N3(om.Group):
                       'lpt', 'duct5', 'core_nozz','byp_splitter',
                       'HXduct', 'byp_bld','duct17', 'byp_mixer', 'mixer_duct',
                       'byp_nozz','gearbox', 'fan_shaft', 'lp_shaft', 'hp_shaft',
-                      'heat_engine', 'perf', 'ext_ratio']
+                      'heat_engine', 'heat_transfer','perf', 'ext_ratio']
 
         # Add balance components to close the implicit components
         balance = self.add_subsystem('balance', om.BalanceComp())
@@ -585,8 +573,6 @@ def run_model(heat_out, record = False):
     des_vars.add_output('duct17:MN_out', 0.45),
     des_vars.add_output('HXduct:MN_out', 0.45),
     des_vars.add_output('mixer_duct:MN_out', 0.45),
-    # TODO: remove tms_q references once old heat transfer is removed
-    # des_vars.add_output('tms_q')
     des_vars.add_output('heat_engine:Wdot', units='W')
     des_vars.add_output('heat_engine:eff_factor')
 
@@ -711,7 +697,6 @@ def run_model(heat_out, record = False):
     prob.model.connect('duct17:MN_out', 'TOC.duct17.MN')
     prob.model.connect('HXduct:MN_out', 'TOC.HXduct.MN')
     prob.model.connect('mixer_duct:MN_out', 'TOC.mixer_duct.MN')
-    # prob.model.connect('tms_q', 'TOC.tms_q')
     prob.model.connect('heat_engine:Wdot', 'TOC.heat_engine.Wdot')
     prob.model.connect('heat_engine:eff_factor', 'TOC.heat_engine.eff_factor')
 
@@ -759,7 +744,6 @@ def run_model(heat_out, record = False):
         prob.model.connect('lpt:bld_inlet:frac_P', pt + '.lpt.bld_inlet:frac_P')
         prob.model.connect('lpt:bld_exit:frac_P', pt + '.lpt.bld_exit:frac_P')
         prob.model.connect('bypBld:frac_W', pt + '.byp_bld.bypBld:frac_W')
-        # prob.model.connect('tms_q', pt + '.tms_q')
         prob.model.connect('heat_engine:Wdot', pt + '.heat_engine.Wdot')
         prob.model.connect('heat_engine:eff_factor', pt + '.heat_engine.eff_factor')
 
@@ -873,7 +857,6 @@ def run_model(heat_out, record = False):
     prob['RTO.hpt_cooling.x_factor'] = 0.9
 
     # set the thermal management system value for heat in and out of ducts
-    # prob['tms_q'] = heat_out  # units: Btu/s
     prob['heat_engine:Wdot'] = heat_out # units: W
     prob['heat_engine:eff_factor'] = 0.4
 
@@ -963,7 +946,7 @@ def heat_transfer_sweep():
     -------
 
     """
-    heatSweep = [0.0, 100.0, 200.0,300.0,400.0,500.0,600.0,700.0,800.0,900.0,1000.0]  # units = Btu/s
+    heatSweep = [0.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0]  # units = Btu/s
     for val in heatSweep:
         run_model(val, record=True)
 
