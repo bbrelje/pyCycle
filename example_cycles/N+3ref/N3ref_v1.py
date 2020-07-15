@@ -16,6 +16,7 @@ Current Features:
 
 # --- Imports ---
 import sys
+import os
 import numpy as np
 import pickle
 import openmdao.api as om
@@ -921,8 +922,12 @@ def run_model(heat_out, record=False):
     st = time.time()
 
     if record:
-        probRec = om.SqliteRecorder("/Volumes/LamboDrive/UMich/Summer_2020/N+3Hybrid/Data_Output/raw/N3heatSweepData_" +
-                                    str(int(heat_out)) + ".sql")
+        fp = "../../../data_output/heat_sweeps/raw"
+        # double check that the path exists
+        if os.path.exists(fp):
+            probRec = om.SqliteRecorder(fp + "/heatSweep_" + str(int(heat_out)) + ".sql")
+        else:
+            print('File directory not properly set up')
         prob.add_recorder(probRec)
 
     prob.set_solver_print(level=-1)
@@ -947,11 +952,20 @@ def heat_transfer_sweep():
     -------
 
     """
-    heatSweep = [0.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0]  # units = Btu/s
+    # check for proper data directory and create one if not already made
+    fp = "../../../"
+    if not os.path.exists(fp+"data_output"):
+        os.makedirs(fp+"data_output/heat_sweeps/raw")
+    elif not os.path.exists(fp+"data_output/heat_sweeps"):
+        os.makedirs(fp+"data_output/heat_sweeps")
+    elif not os.path.exists(fp+"data_output/heat_sweeps/raw"):
+        os.makedirs(fp+"data_output/heat_sweeps/raw")
+
+    heatSweep = [0.0, 100e3, 200.0e3, 300.0e3, 400.0e3, 500.0e3, 600.0e3, 700.0e3, 800.0e3, 900.0e3, 1000.0e3]  # units = W
     for val in heatSweep:
         run_model(val, record=True)
 
 
 if __name__ == "__main__":
-    run_model(100.0e3)
+    heat_transfer_sweep()
 
