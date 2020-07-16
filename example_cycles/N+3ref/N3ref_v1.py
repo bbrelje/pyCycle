@@ -506,13 +506,9 @@ def viewer(prob, pt, file=sys.stdout):
     pyc.print_bleed(prob, bleed_full_names, file=file)
 
 
-def run_model(heat_out, record=False):
+def run_model():
     """
     Encapsulated method for running the N+3 engine model
-    Parameters
-    ----------
-    heat_out: float, The heat being taken out of the turbine exhaust
-    record: bool, default = False, Set to true in order to record model data using sql
 
     Returns
     -------
@@ -858,9 +854,10 @@ def run_model(heat_out, record=False):
     # om.n2(prob, outfile="Updated_Bypass_n2.html")
     prob['RTO.hpt_cooling.x_factor'] = 0.9
 
-    # set the thermal management system value for heat in and out of ducts
-    prob['heat_engine:Wdot'] = heat_out  # units: W
+    # Set heat out of turbine exhaust
+    prob['heat_engine:Wdot'] = 100e3  # units: W
     prob['heat_engine:eff_factor'] = 0.4
+
 
     # initial guesses
     prob['TOC.balance.FAR'] = 0.02650
@@ -921,15 +918,6 @@ def run_model(heat_out, record=False):
 
     st = time.time()
 
-    if record:
-        fp = "../../../data_output/heat_sweeps/raw"
-        # double check that the path exists
-        if os.path.exists(fp):
-            probRec = om.SqliteRecorder(fp + "/heatSweep_" + str(int(heat_out)) + ".sql")
-        else:
-            print('File directory not properly set up')
-        prob.add_recorder(probRec)
-
     prob.set_solver_print(level=-1)
     prob.set_solver_print(level=2, depth=1)
     prob.run_model()
@@ -937,35 +925,11 @@ def run_model(heat_out, record=False):
     for pt in ['TOC'] + pts:
         viewer(prob, pt)
 
-    if record:
-        prob.record(case_name='heatSweep')
-    print("time", time.time() - st)
+    print("time: ", time.time() - st)
 
-    if not record:
-        exit()
-
-
-def heat_transfer_sweep():
-    """
-    Runs a sweep of heat transfer values
-    Returns
-    -------
-
-    """
-    # check for proper data directory and create one if not already made
-    fp = "../../../"
-    if not os.path.exists(fp+"data_output"):
-        os.makedirs(fp+"data_output/heat_sweeps/raw")
-    elif not os.path.exists(fp+"data_output/heat_sweeps"):
-        os.makedirs(fp+"data_output/heat_sweeps")
-    elif not os.path.exists(fp+"data_output/heat_sweeps/raw"):
-        os.makedirs(fp+"data_output/heat_sweeps/raw")
-
-    heatSweep = [0.0, 100e3, 200.0e3, 300.0e3, 400.0e3, 500.0e3, 600.0e3, 700.0e3, 800.0e3, 900.0e3, 1000.0e3]  # units = W
-    for val in heatSweep:
-        run_model(val, record=True)
+    exit()
 
 
 if __name__ == "__main__":
-    heat_transfer_sweep()
+    run_model()
 
