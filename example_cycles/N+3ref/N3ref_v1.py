@@ -9,8 +9,6 @@ Current Features:
     - Single bypass duct simulating the pressure drop and heat transfer from the cold side HX
     - Single turbine exhaust duct simulating the pressure drop and heat transfer from the hot side HX
     - Simple heat engine component implemented for the heat transfer model
-    - Functionality to perform heat transfer sweeps of the engine model
-    - Functionality to perform pressure drop sweeps for the engine model
 """
 
 
