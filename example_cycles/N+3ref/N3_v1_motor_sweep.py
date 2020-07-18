@@ -1,8 +1,8 @@
 # --- Python 3.8 ---
-# FileName: N3_v1_pressure_sweep.py
+# FileName: N3_v1_motor_sweep.py
 # Created by: alamkin
-# Date: 7/16/20
-# Last Updated: 10:37 AM
+# Date: 7/18/20
+# Last Updated: 2:02 PM
 
 # --- Imports ---
 import os
@@ -10,7 +10,7 @@ import time
 import openmdao.api as om
 from N3ref_v1 import N3, viewer
 
-def run_model(pressure_drop, data_fp = None, record=False):
+def run_model(val, data_fp = None, record=False):
     """
     Encapsulated method for running the N+3 engine model
     Parameters
@@ -51,7 +51,7 @@ def run_model(pressure_drop, data_fp = None, record=False):
     des_vars.add_output('lpt:effPoly', 0.92),
     des_vars.add_output('duct5:dPqP', 0.0100),
     des_vars.add_output('core_nozz:Cv', 0.9999),
-    des_vars.add_output('duct17:dPqP', pressure_drop),
+    des_vars.add_output('duct17:dPqP', .0150),
     des_vars.add_output('byp_nozz:Cv', 0.9975),
     des_vars.add_output('fan_shaft:Nmech', 2184.5, units='rpm'),
     des_vars.add_output('lp_shaft:Nmech', 6772.0, units='rpm'),
@@ -416,14 +416,18 @@ def run_model(pressure_drop, data_fp = None, record=False):
             prob[pt + '.hpc.map.RlineMap'] = 1.9746
             prob[pt + '.gearbox.trq_base'] = 22369.7
 
+    prob['TOC.motor.power'] = val
+    prob['RTO.motor.power'] = val
+    prob['CRZ.motor.power'] = val
+    prob['SLS.motor.power'] = val
+
     st = time.time()
 
     if record:
         # double check that the path exists
         if os.path.exists(data_fp):
-            file = str(pressure_drop)
-            file = file.replace('.','')
-            prob_rec = om.SqliteRecorder(data_fp + "/pressureSweep_" + file + ".sql")
+            file = str(int(val))
+            prob_rec = om.SqliteRecorder(data_fp + "/motorSweep_" + file + ".sql")
         else:
             print('File directory not properly set up')
         prob.add_recorder(prob_rec)
@@ -436,41 +440,42 @@ def run_model(pressure_drop, data_fp = None, record=False):
         viewer(prob, pt)
 
     if record:
-        prob.record(case_name='pressureSweep')
+        prob.record(case_name='motorSweep')
     print("time: ", time.time() - st)
 
     if not record:
         exit()
 
 
-def pressure_sweep():
+def motor_sweep():
 
     # check for proper data directory and create one if not already made
     fp = "../../../"
+    dir = 'data_output/motor_sweeps/raw'
     if not os.path.exists(fp+"data_output"):
-        os.makedirs(fp+"data_output/pressure_sweeps/raw")
-    elif not os.path.exists(fp+"data_output/pressure_sweeps"):
-        os.makedirs(fp+"data_output/pressure_sweeps/raw")
-    elif not os.path.exists(fp+"data_output/pressure_sweeps/raw"):
-        os.makedirs(fp+"data_output/pressure_sweeps/raw")
+        os.makedirs(fp+dir)
+    elif not os.path.exists(fp+"data_output/motor_sweeps"):
+        os.makedirs(fp+dir)
+    elif not os.path.exists(fp+"data_output/motor_sweeps/raw"):
+        os.makedirs(fp+dir)
 
-    full_fp = fp+"data_output/pressure_sweeps/raw"
+    full_fp = fp+"data_output/motor_sweeps/raw"
 
-    dir = os.listdir(full_fp)
-    dir = dir[1:]
-    if len(dir) != 0:
+    dirList = os.listdir(full_fp)
+    dirList = dirList[1:]
+    if len(dirList) != 0:
         user_in = input('Data already exists.  Overwrite old files? [y/n]: ')
         if user_in.lower() == 'y':
-            for file in dir:
+            for file in dirList:
                 os.remove(os.path.join(full_fp, file))
                 print("Removed {} from {}".format(file, full_fp))
         else:
             print('Sweep cancelled.')
             return
 
-    pressure_sweep = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06]  # dPqP
-    for val in pressure_sweep:
+    motor_sweep = [-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8]
+    for val in motor_sweep:
         run_model(val, data_fp=full_fp, record=True)
 
 if __name__=="__main__":
-    pressure_sweep()
+    motor_sweep()
