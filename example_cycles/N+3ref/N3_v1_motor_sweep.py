@@ -416,17 +416,18 @@ def run_model(val, data_fp = None, record=False):
             prob[pt + '.hpc.map.RlineMap'] = 1.9746
             prob[pt + '.gearbox.trq_base'] = 22369.7
 
-    prob['TOC.motor.power'] = val
-    prob['RTO.motor.power'] = val
-    prob['CRZ.motor.power'] = val
-    prob['SLS.motor.power'] = val
+    prob['TOC.motor.power'] = -val
+    prob['RTO.motor.power'] = -val
+    prob['CRZ.motor.power'] = -val
+    prob['SLS.motor.power'] = -val
 
     st = time.time()
 
     if record:
         # double check that the path exists
         if os.path.exists(data_fp):
-            file = str(int(val))
+            file = str(val)
+            file = file.replace(".","")
             prob_rec = om.SqliteRecorder(data_fp + "/motorSweep_" + file + ".sql")
         else:
             print('File directory not properly set up')
@@ -447,7 +448,7 @@ def run_model(val, data_fp = None, record=False):
         exit()
 
 
-def motor_sweep():
+def motor_power_sweep():
 
     # check for proper data directory and create one if not already made
     fp = "../../../"
@@ -473,9 +474,9 @@ def motor_sweep():
             print('Sweep cancelled.')
             return
 
-    motor_sweep = [-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8]
+    motor_sweep = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] # units: MW
     for val in motor_sweep:
         run_model(val, data_fp=full_fp, record=True)
 
 if __name__=="__main__":
-    motor_sweep()
+    motor_power_sweep()
