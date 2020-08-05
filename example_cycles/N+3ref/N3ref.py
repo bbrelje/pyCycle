@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-import pickle
+
 import openmdao.api as om
 
 import pycycle.api as pyc
@@ -14,7 +14,7 @@ from N3_HPT_map import HPTMap
 from N3_LPT_map import LPTMap
 
 
-class N3(om.Group):
+class N3(pyc.Cycle):
 
     def initialize(self):
         self.options.declare('design', default=True,
@@ -237,9 +237,9 @@ class N3(om.Group):
                                pyc.TurbineCooling(n_stages=2, thermo_data=pyc.species_data.janaf, T_metal=2460.))
             self.add_subsystem('hpt_chargable', pyc.CombineCooling(n_ins=3))
 
-            pyc.connect_flow(self, 'bld3.bld_inlet', 'hpt_cooling.Fl_cool', connect_stat=False)
-            pyc.connect_flow(self, 'burner.Fl_O', 'hpt_cooling.Fl_turb_I')
-            pyc.connect_flow(self, 'hpt.Fl_O', 'hpt_cooling.Fl_turb_O')
+            self.pyc_connect_flow('bld3.bld_inlet', 'hpt_cooling.Fl_cool', connect_stat=False)
+            self.pyc_connect_flow('burner.Fl_O', 'hpt_cooling.Fl_turb_I')
+            self.pyc_connect_flow('hpt.Fl_O', 'hpt_cooling.Fl_turb_O')
 
             self.connect('hpt_cooling.row_1.W_cool', 'hpt_chargable.W_1')
             self.connect('hpt_cooling.row_2.W_cool', 'hpt_chargable.W_2')
@@ -297,8 +297,6 @@ class N3(om.Group):
         # newton.linesearch.options['maxiter'] = 2
         newton.linesearch.options['bound_enforcement'] = 'scalar'
         newton.linesearch.options['iprint'] = -1
-        # newton.linesearch.options['print_bound_enforce'] = True
-
         # if design:
         #     newton.linesearch.options['print_bound_enforce'] = True
 
