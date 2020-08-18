@@ -211,7 +211,7 @@ class CompressorMap(om.Group):
             map_bal = om.BalanceComp()
             map_bal.add_balance('NcMap', val=map_data.defaults['NcMap'], units='rpm', eq_units='rpm')
             map_bal.add_balance('RlineMap', val=map_data.defaults['RlineMap'], units=None, 
-                                eq_units='lbm/s', lower=map_data.RlineStall)
+                                eq_units='lbm/s', lower=-2.0)
             self.add_subsystem(name='map_bal', subsys=map_bal, 
                                 promotes_inputs=[('lhs:NcMap','Nc'),('lhs:RlineMap','Wc')],
                                 promotes_outputs=['NcMap', 'RlineMap'])

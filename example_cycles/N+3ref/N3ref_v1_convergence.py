@@ -269,11 +269,11 @@ class N3(om.Group):
             self.connect('perf.Fn', 'balance.lhs:FAR')
             # self.connect('burner.Fl_O:tot:T', 'balance.lhs:FAR')
             # set mass flow so that sonic area is the same in all OD conditions (choked flow in the core)
-            balance.add_balance('W', units='lbm/s', lower=10., upper=2500., eq_units='inch**2')
+            balance.add_balance('W', units='lbm/s', lower=10., upper=2700., eq_units='inch**2')
             self.connect('balance.W', 'fc.W')
             self.connect('core_nozz.Throat:stat:area', 'balance.lhs:W')
 
-            balance.add_balance('BPR', lower=15., upper=40.)
+            balance.add_balance('BPR', lower=15., upper=100.)
             self.connect('balance.BPR', 'splitter.BPR')
             self.connect('fan.map.RlineMap', 'balance.lhs:BPR')
 

@@ -7,3 +7,6 @@
 pycycle.egg-info/*
 /build*
 *testflo_report.out
+*.npy
+*.pkl
+*SNOPT_*.out

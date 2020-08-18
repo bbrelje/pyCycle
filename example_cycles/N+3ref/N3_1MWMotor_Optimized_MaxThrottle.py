@@ -30,17 +30,17 @@ def run_model(pressure_drop, data_fp = None, record=False):
     des_vars = prob.model.add_subsystem('des_vars', om.IndepVarComp(), promotes=["*"])
 
     des_vars.add_output('inlet:ram_recovery', 0.9980),
-    des_vars.add_output('fan:PRdes', 1.300),
+    des_vars.add_output('fan:PRdes', 1.30444717),
     des_vars.add_output('fan:effDes', 0.96888),
+    des_vars.add_output('fandiam', 100., units='inch')
     des_vars.add_output('fan:effPoly', 0.97),
-    des_vars.add_output('splitter:BPR', 23.9451),
     des_vars.add_output('duct2:dPqP', 0.0100),
-    des_vars.add_output('lpc:PRdes', 3.000),
+    des_vars.add_output('lpc:PRdes', 4.000),
     des_vars.add_output('lpc:effDes', 0.889513),
     des_vars.add_output('lpc:effPoly', 0.905),
     des_vars.add_output('duct25:dPqP', 0.0150),
     des_vars.add_output('hpc:PRdes', 14.103),
-    des_vars.add_output('OPR', 53.6332)
+    des_vars.add_output('OPR_simple', 64.49032463)
     des_vars.add_output('hpc:effDes', 0.847001),
     des_vars.add_output('hpc:effPoly', 0.89),
     des_vars.add_output('burner:dPqP', 0.0400),
@@ -94,7 +94,7 @@ def run_model(pressure_drop, data_fp = None, record=False):
     des_vars.add_output('duct5:MN_out', 0.25),
     des_vars.add_output('bypBld:MN_out', 0.45),
     des_vars.add_output('duct17:MN_out', 0.45),
-    des_vars.add_output('heat_engine:Wdot', 300, units='kW')
+    des_vars.add_output('heat_engine:Wdot', 0.0001, units='kW')
     des_vars.add_output('heat_engine:eff_factor', 0.4)
 
     # POINT 1: Top-of-climb (TOC)
@@ -103,8 +103,9 @@ def run_model(pressure_drop, data_fp = None, record=False):
     des_vars.add_output('TOC:T4max', 3150.0, units='degR'),
     des_vars.add_output('TOC:Fn_des', 6123.0, units='lbf'),
     des_vars.add_output('TOC:ram_recovery', 0.9980),
+    des_vars.add_output('TOC:BPR', 20.31168463, units=None)
+    des_vars.add_output('TOC:W', 810.91768342, units='lbm/s')
     des_vars.add_output('TR', 0.926470588)
-    des_vars.add_output('TOC:W', 820.44097898, units='lbm/s')
 
     # POINT 2: Rolling Takeoff (RTO)
     des_vars.add_output('RTO:MN', 0.25),
@@ -113,7 +114,7 @@ def run_model(pressure_drop, data_fp = None, record=False):
     des_vars.add_output('RTO:dTs', 27.0, units='degR')
     des_vars.add_output('RTO:Ath', 5532.3, units='inch**2')
     des_vars.add_output('RTO:RlineMap', 1.75)
-    des_vars.add_output('RTO:T4max', 3400.0, units='degR')
+    des_vars.add_output('RTO:T4max', 3218.87, units='degR')
     des_vars.add_output('RTO:W', 1916.13, units='lbm/s')
     des_vars.add_output('RTO:ram_recovery', 0.9970),
     des_vars.add_output('RTO:duct2:dPqP', 0.0073)
@@ -146,8 +147,8 @@ def run_model(pressure_drop, data_fp = None, record=False):
     des_vars.add_output('CRZ:duct25:dPqP', 0.0138)
     des_vars.add_output('CRZ:duct45:dPqP', 0.0050)
     des_vars.add_output('CRZ:duct5:dPqP', 0.0097)
-    des_vars.add_output('CRZ:VjetRatio', 1.41038)
-
+    des_vars.add_output('CRZ:VjetRatio', 1.35)
+    des_vars.add_output('CRZ:N1max', 6800., units='rpm')
 
     # TOC POINT (DESIGN)
     prob.model.add_subsystem('TOC', N3())
@@ -155,21 +156,21 @@ def run_model(pressure_drop, data_fp = None, record=False):
     prob.model.connect('TOC:MN', 'TOC.fc.MN')
 
     prob.model.connect('TOC:ram_recovery', 'TOC.inlet.ram_recovery')
-    prob.model.connect('fan:PRdes', 'TOC.fan.PR')
+    prob.model.connect('fan:PRdes', ['TOC.fan.PR', 'TOC.opr_calc.FPR'])
     prob.model.connect('fan:effPoly', 'TOC.balance.rhs:fan_eff')
     prob.model.connect('duct2:dPqP', 'TOC.duct2.dPqP')
-    prob.model.connect('lpc:PRdes', 'TOC.lpc.PR')
+    prob.model.connect('lpc:PRdes', ['TOC.lpc.PR', 'TOC.opr_calc.LPCPR'])
     prob.model.connect('lpc:effPoly', 'TOC.balance.rhs:lpc_eff')
     prob.model.connect('duct25:dPqP', 'TOC.duct25.dPqP')
-    prob.model.connect('OPR', 'TOC.balance.rhs:hpc_PR')
+    prob.model.connect('OPR_simple', 'TOC.balance.rhs:hpc_PR')
     prob.model.connect('burner:dPqP', 'TOC.burner.dPqP')
     prob.model.connect('hpt:effPoly', 'TOC.balance.rhs:hpt_eff')
     prob.model.connect('duct45:dPqP', 'TOC.duct45.dPqP')
     prob.model.connect('lpt:effPoly', 'TOC.balance.rhs:lpt_eff')
     prob.model.connect('duct5:dPqP', 'TOC.duct5.dPqP')
-    prob.model.connect('core_nozz:Cv', 'TOC.core_nozz.Cv')
+    prob.model.connect('core_nozz:Cv', ['TOC.core_nozz.Cv', 'TOC.ext_ratio.core_Cv'])
     prob.model.connect('duct17:dPqP', 'TOC.duct17.dPqP')
-    prob.model.connect('byp_nozz:Cv', 'TOC.byp_nozz.Cv')
+    prob.model.connect('byp_nozz:Cv', ['TOC.byp_nozz.Cv', 'TOC.ext_ratio.byp_Cv'])
     prob.model.connect('fan_shaft:Nmech', 'TOC.Fan_Nmech')
     prob.model.connect('lp_shaft:Nmech', 'TOC.LP_Nmech')
     prob.model.connect('lp_shaft:fracLoss', 'TOC.lp_shaft.fracLoss')
@@ -225,7 +226,7 @@ def run_model(pressure_drop, data_fp = None, record=False):
         prob.model.connect(pt+':alt', pt+'.fc.alt')
         prob.model.connect(pt+':MN', pt+'.fc.MN')
         prob.model.connect(pt+':dTs', pt+'.fc.dTs')
-        prob.model.connect(pt+':RlineMap', pt+'.balance.rhs:BPR')
+        prob.model.connect(pt+':RlineMap',pt+'.balance.rhs:BPR')
 
         prob.model.connect(pt+':ram_recovery', pt+'.inlet.ram_recovery')
         prob.model.connect('TOC.duct2.s_dPqP', pt+'.duct2.s_dPqP')
@@ -233,9 +234,9 @@ def run_model(pressure_drop, data_fp = None, record=False):
         prob.model.connect('burner:dPqP', pt+'.burner.dPqP')
         prob.model.connect('TOC.duct45.s_dPqP', pt+'.duct45.s_dPqP')
         prob.model.connect('TOC.duct5.s_dPqP', pt+'.duct5.s_dPqP')
-        prob.model.connect('core_nozz:Cv', pt+'.core_nozz.Cv')
+        prob.model.connect('core_nozz:Cv', [pt+'.core_nozz.Cv', pt+'.ext_ratio.core_Cv'])
         prob.model.connect('TOC.duct17.s_dPqP', pt+'.duct17.s_dPqP')
-        prob.model.connect('byp_nozz:Cv', pt+'.byp_nozz.Cv')
+        prob.model.connect('byp_nozz:Cv', [pt+'.byp_nozz.Cv', pt+'.ext_ratio.byp_Cv'])
         prob.model.connect('lp_shaft:fracLoss', pt+'.lp_shaft.fracLoss')
         prob.model.connect('hp_shaft:HPX', pt+'.hp_shaft.HPX')
 
@@ -279,7 +280,7 @@ def run_model(pressure_drop, data_fp = None, record=False):
         prob.model.connect('TOC.lpt.s_Np', pt+'.lpt.s_Np')
 
         prob.model.connect('TOC.gearbox.gear_ratio', pt+'.gearbox.gear_ratio')
-        prob.model.connect('TOC.core_nozz.Throat:stat:area', pt+'.balance.rhs:W')
+        prob.model.connect('TOC.core_nozz.Throat:stat:area',pt+'.balance.rhs:W')
 
         prob.model.connect('TOC.inlet.Fl_O:stat:area', pt+'.inlet.area')
         prob.model.connect('TOC.fan.Fl_O:stat:area', pt+'.fan.area')
@@ -309,16 +310,20 @@ def run_model(pressure_drop, data_fp = None, record=False):
     prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'CRZ.bld3.bld_inlet:frac_W')
 
     bal = prob.model.add_subsystem('bal', om.BalanceComp())
-    # bal.add_balance('TOC_BPR', val=23.7281, units=None, eq_units='ft/s', use_mult=True)
+    # bal.add_balance('TOC_BPR', val=20.7281, units=None, eq_units='ft/s', use_mult=True)
     # prob.model.connect('bal.TOC_BPR', 'TOC.splitter.BPR')
     # prob.model.connect('CRZ.byp_nozz.Fl_O:stat:V', 'bal.lhs:TOC_BPR')
     # prob.model.connect('CRZ.core_nozz.Fl_O:stat:V', 'bal.rhs:TOC_BPR')
     # prob.model.connect('CRZ:VjetRatio', 'bal.mult:TOC_BPR')
+    prob.model.connect('TOC:BPR', 'TOC.splitter.BPR')
 
-    bal.add_balance('TOC_W', val=820.95, units='lbm/s', eq_units='degR')
-    prob.model.connect('bal.TOC_W', 'TOC.fc.W')
-    prob.model.connect('RTO.burner.Fl_O:tot:T', 'bal.lhs:TOC_W')
-    prob.model.connect('RTO:T4max','bal.rhs:TOC_W')
+
+    # bal.add_balance('TOC_W', val=810.918, units='lbm/s', eq_units='inch')
+    # prob.model.connect('bal.TOC_W', 'TOC.fc.W')
+    # prob.model.connect('TOC.fan_dia.FanDia', 'bal.lhs:TOC_W')
+    # prob.model.connect('fandiam', 'bal.rhs:TOC_W')
+    # prob.model.connect('RTO.burner.Fl_O:tot:T', 'bal.lhs:TOC_W')
+    # prob.model.connect('RTO:T4max','bal.rhs:TOC_W')
 
     # bal.add_balance('CRZ_Fn_target', val=5514.4, units='lbf', eq_units='lbf', use_mult=True, mult_val=0.9, ref0=5000.0, ref=7000.0)
     # prob.model.connect('bal.CRZ_Fn_target', 'CRZ.balance.rhs:FAR')
@@ -330,9 +335,7 @@ def run_model(pressure_drop, data_fp = None, record=False):
     # prob.model.connect('RTO.perf.Fn', 'bal.lhs:SLS_Fn_target')
     # prob.model.connect('SLS.perf.Fn','bal.rhs:SLS_Fn_target')
 
-    prob.model.connect('splitter:BPR', 'TOC.splitter.BPR')
-    # prob.model.connect('TOC:W', 'TOC.fc.W')
-    prob.model.connect('CRZ:Fn_target', 'CRZ.balance.rhs:FAR')
+    prob.model.connect('TOC:W', 'TOC.fc.W')
     prob.model.connect('SLS:Fn_target', 'SLS.balance.rhs:FAR')
 
     prob.model.add_subsystem('T4_ratio',
@@ -340,15 +343,37 @@ def run_model(pressure_drop, data_fp = None, record=False):
                                             RTO_T4={'value': 3400.0, 'units': 'degR'},
                                             TOC_T4={'value': 3150.0, 'units': 'degR'},
                                             TR={'value': 0.926470588, 'units': None}))
-    prob.model.connect('RTO:T4max', 'T4_ratio.RTO_T4')
+    prob.model.connect('RTO:T4max','T4_ratio.RTO_T4')
     # prob.model.connect('T4_ratio.TOC_T4', 'TOC.balance.rhs:FAR')
     prob.model.connect('TOC:Fn_des', 'TOC.balance.rhs:FAR')
     prob.model.connect('TR', 'T4_ratio.TR')
-    prob.model.set_order(['des_vars', 'T4_ratio', 'TOC', 'RTO', 'CRZ', 'SLS', 'bal'])
+
+    prob.model.add_subsystem('eng_op_limits',
+                            om.ExecComp('lim_ratio = max(T4/T4max, N1/N1max, N2/N2max)',
+                                        lim_ratio={'value': 0.95, 'units':None},
+                                        T4={'value': 2800., 'units':'degR'},
+                                        T4max={'value': 3040, 'units': 'degR'},
+                                        N1={'value': 6600., 'units': 'rpm'},
+                                        N1max={'value': 6800., 'units': 'rpm'},
+                                        N2={'value': 20000., 'units': 'rpm'},
+                                        N2max={'value': 22500., 'units': 'rpm'}))
+    prob.model.connect('CRZ.burner.Fl_O:tot:T', 'eng_op_limits.T4')
+    prob.model.connect('CRZ.balance.lp_Nmech', 'eng_op_limits.N1')
+    prob.model.connect('CRZ.balance.hp_Nmech', 'eng_op_limits.N2')
+    # prob.model.connect('CRZ:Fn_target', 'CRZ.balance.rhs:FAR')
+
+
+    bal.add_balance('CRZ_Fn_target', val=6200., units='lbf', eq_units=None, rhs_val=1.0, ref0=5000.0, ref=7000.0)
+    prob.model.connect('bal.CRZ_Fn_target', 'CRZ.balance.rhs:FAR')
+    prob.model.connect('eng_op_limits.lim_ratio', 'bal.lhs:CRZ_Fn_target')
+
+    prob.model.set_order(['des_vars', 'T4_ratio', 'TOC', 'RTO', 'CRZ', 'SLS', 'eng_op_limits','bal'])
+    # prob.model.set_order(['des_vars', 'T4_ratio', 'TOC', 'RTO', 'CRZ', 'SLS'])
+
 
     newton = prob.model.nonlinear_solver = om.NewtonSolver()
-    newton.options['atol'] = 1e-6
-    newton.options['rtol'] = 1e-6
+    newton.options['atol'] = 1e-10
+    newton.options['rtol'] = 1e-10
     newton.options['iprint'] = 2
     newton.options['maxiter'] = 20
     newton.options['solve_subsystems'] = True
@@ -362,36 +387,38 @@ def run_model(pressure_drop, data_fp = None, record=False):
     prob.model.linear_solver = om.DirectSolver(assemble_jac=True)
 
     # setup the optimization
-    prob.driver = om.ScipyOptimizeDriver()
-    # prob.driver.options['optimizer'] = 'SNOPT'
-    # prob.driver.options['debug_print'] = ['desvars', 'nl_cons', 'objs']
+    prob.driver = om.pyOptSparseDriver()
+    prob.driver.options['optimizer'] = 'SNOPT'
+    prob.driver.options['debug_print'] = ['desvars', 'nl_cons', 'objs']
     # prob.driver.opt_settings = {'Major step limit': 0.05}
 
-    prob.model.add_design_var('fan:PRdes', lower=1.20, upper=1.4)
-    prob.model.add_design_var('lpc:PRdes', lower=2.0, upper=4.0)
-    prob.model.add_design_var('OPR', lower=40.0, upper=70.0, ref0=40.0, ref=70.0)
-    prob.model.add_design_var('RTO:T4max', lower=3000.0, upper=3600.0, ref0=3000.0, ref=3600.0)
+    prob.model.add_design_var('fan:PRdes', lower=1.30, upper=1.4)
+    prob.model.add_design_var('lpc:PRdes', lower=2.5, upper=4.0)
+    prob.model.add_design_var('OPR_simple', lower=40.0, upper=70.0, ref0=40.0, ref=70.0)
+    # prob.model.add_design_var('RTO:T4max', lower=3000.0, upper=3400.0, ref0=3000.0, ref=3400.0)
     prob.model.add_design_var('CRZ:VjetRatio', lower=1.35, upper=1.45, ref0=1.35, ref=1.45)
-    prob.model.add_design_var('TR', lower=0.5, upper=0.95, ref0=0.5, ref=0.95)
-
-    prob.model.add_objective('TOC.perf.TSFC')
-
+    # prob.model.add_design_var('TR', lower=0.5, upper=0.95, ref0=0.5, ref=0.95)
+    prob.model.add_design_var('fandiam', lower=99.0, upper=100.0)
+    # prob.model.add_objective('TOC.perf.TSFC')
+    prob.model.add_objective('CRZ.burner.Wfuel', ref0=.6, ref=0.7)
     # to add the constraint to the model
-    prob.model.add_constraint('TOC.fan_dia.FanDia', upper=100.0, ref=100.0)
-
+    # prob.model.add_constraint('TOC.fan_dia.FanDia', upper=101.0, ref=100.0)
+    # prob.model.add_constraint('TOC.perf.Fn', lower=5800.0, ref=6000.0)
+    prob.model.add_constraint('RTO.burner.Fl_O:tot:T', upper=3400.)
+    prob.model.add_constraint('TOC.burner.Fl_O:tot:T', upper=3400.*0.95)
     prob.setup(check=False)
     prob['RTO.hpt_cooling.x_factor'] = 0.9
 
     # initial guesses
     prob['TOC.balance.FAR'] = 0.02650
-    prob['bal.TOC_W'] = 820.95
+    # prob['bal.TOC_W'] = 810.95
     prob['TOC.balance.lpt_PR'] = 10.937
     prob['TOC.balance.hpt_PR'] = 4.185
     prob['TOC.fc.balance.Pt'] = 5.272
     prob['TOC.fc.balance.Tt'] = 444.41
-    
-    for pt in ['TOC', 'CRZ']:
-        prob.set_val(pt+'.motor.power', -0., units='kW')
+
+    for pt in ['RTO', 'SLS']:
+        prob.set_val(pt+'.motor.power', 1000., units='kW')
 
     for pt in pts:
         if pt == 'RTO':
@@ -442,6 +469,7 @@ def run_model(pressure_drop, data_fp = None, record=False):
             prob[pt+'.hpc.map.RlineMap'] = 1.9746
             prob[pt+'.gearbox.trq_base'] = 22369.7
 
+
     st = time.time()
 
     if record:
@@ -457,6 +485,7 @@ def run_model(pressure_drop, data_fp = None, record=False):
     prob.set_solver_print(level=-1)
     prob.set_solver_print(level=2, depth=1)
     prob.run_model()
+    # prob.run_driver()
 
     for pt in ['TOC'] + pts:
         viewer(prob, pt)
@@ -469,7 +498,8 @@ def run_model(pressure_drop, data_fp = None, record=False):
         print('Pwr net')
         print(prob.get_val(pt+'.lp_shaft.pwr_net', units='kW'))
         print(prob.get_val(pt+'.hp_shaft.pwr_net', units='kW'))
-
+        print('Fan diam')
+        print(prob.get_val('TOC.fan_dia.FanDia', units='inch'))
     if record:
         prob.record(case_name='pressureSweep')
     print("time: ", time.time() - st)
@@ -482,14 +512,14 @@ def pressure_sweep():
 
     # check for proper data directory and create one if not already made
     fp = "../../../"
-    if not os.path.exists(fp+"data_output_mech"):
-        os.makedirs(fp+"data_output_mech/pressure_sweeps/raw")
-    elif not os.path.exists(fp+"data_output_mech/pressure_sweeps"):
-        os.makedirs(fp+"data_output_mech/pressure_sweeps/raw")
-    elif not os.path.exists(fp+"data_output_mech/pressure_sweeps/raw"):
-        os.makedirs(fp+"data_output_mech/pressure_sweeps/raw")
+    if not os.path.exists(fp+"data_output_opt_1MW"):
+        os.makedirs(fp+"data_output_opt_1MW/pressure_sweeps/raw")
+    elif not os.path.exists(fp+"data_output_opt_1MW/pressure_sweeps"):
+        os.makedirs(fp+"data_output_opt_1MW/pressure_sweeps/raw")
+    elif not os.path.exists(fp+"data_output_opt_1MW/pressure_sweeps/raw"):
+        os.makedirs(fp+"data_output_opt_1MW/pressure_sweeps/raw")
 
-    full_fp = fp+"data_output_mech/pressure_sweeps/raw"
+    full_fp = fp+"data_output_opt_1MW/pressure_sweeps/raw"
 
     dir = os.listdir(full_fp)
     dir = dir[1:]
