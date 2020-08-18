@@ -17,14 +17,14 @@ des_vars.add_output('inlet:ram_recovery', 0.9980),
 des_vars.add_output('fan:PRdes', 1.300),
 des_vars.add_output('fan:effDes', 0.96888),
 des_vars.add_output('fan:effPoly', 0.97),
-des_vars.add_output('splitter:BPR', 23.7281), #23.9878
+des_vars.add_output('splitter:BPR', 23.7281),
 des_vars.add_output('duct2:dPqP', 0.0100),
 des_vars.add_output('lpc:PRdes', 3.000),
 des_vars.add_output('lpc:effDes', 0.889513),
 des_vars.add_output('lpc:effPoly', 0.905),
 des_vars.add_output('duct25:dPqP', 0.0150),
 des_vars.add_output('hpc:PRdes', 14.103),
-des_vars.add_output('OPR', 53.6332) #53.635)
+des_vars.add_output('OPR', 53.6332)
 des_vars.add_output('hpc:effDes', 0.847001),
 des_vars.add_output('hpc:effPoly', 0.89),
 des_vars.add_output('burner:dPqP', 0.0400),
@@ -53,8 +53,8 @@ des_vars.add_output('hpc:bld_exit:frac_work', 0.5),
 des_vars.add_output('hpc:cust:frac_W', 0.0),
 des_vars.add_output('hpc:cust:frac_P', 0.1465),
 des_vars.add_output('hpc:cust:frac_work', 0.35),
-des_vars.add_output('bld3:bld_inlet:frac_W', 0.063660111), #different than NPSS due to Wref
-des_vars.add_output('bld3:bld_exit:frac_W', 0.07037185), #different than NPSS due to Wref
+des_vars.add_output('bld3:bld_inlet:frac_W', 0.063660111),  # different than NPSS due to Wref
+des_vars.add_output('bld3:bld_exit:frac_W', 0.07037185),  # different than NPSS due to Wref
 des_vars.add_output('hpt:bld_inlet:frac_P', 1.0),
 des_vars.add_output('hpt:bld_exit:frac_P', 0.0),
 des_vars.add_output('lpt:bld_inlet:frac_P', 1.0),
@@ -120,7 +120,7 @@ des_vars.add_output('SLS:duct17:dPqP', 0.0123)
 # POINT 4: Cruise (CRZ)
 des_vars.add_output('CRZ:MN', 0.8),
 des_vars.add_output('CRZ:alt', 35000.0, units='ft'),
-des_vars.add_output('CRZ:Fn_target', 5466.5, units='lbf'), #8950.0
+des_vars.add_output('CRZ:Fn_target', 5466.5, units='lbf'),
 des_vars.add_output('CRZ:dTs', 0.0, units='degR')
 des_vars.add_output('CRZ:Ath', 4747.1, units='inch**2')
 des_vars.add_output('CRZ:RlineMap', 1.9397)
@@ -135,7 +135,6 @@ des_vars.add_output('CRZ:VjetRatio', 1.41038)
 
 # TOC POINT (DESIGN)
 prob.model.add_subsystem('TOC', N3())
-
 prob.model.connect('TOC:alt', 'TOC.fc.alt')
 prob.model.connect('TOC:MN', 'TOC.fc.MN')
 
@@ -195,9 +194,8 @@ prob.model.connect('duct5:MN_out', 'TOC.duct5.MN')
 prob.model.connect('bypBld:MN_out', 'TOC.byp_bld.MN')
 prob.model.connect('duct17:MN_out', 'TOC.duct17.MN')
 
-
 # OTHER POINTS (OFF-DESIGN)
-pts = ['RTO','SLS','CRZ']
+pts = ['RTO', 'SLS', 'CRZ']
 
 prob.model.connect('RTO:Fn_target', 'RTO.balance.rhs:FAR')
 
@@ -206,11 +204,10 @@ prob.model.add_subsystem('SLS', N3(design=False))
 prob.model.add_subsystem('CRZ', N3(design=False))
 
 for pt in pts:
-
     prob.model.connect(pt+':alt', pt+'.fc.alt')
     prob.model.connect(pt+':MN', pt+'.fc.MN')
     prob.model.connect(pt+':dTs', pt+'.fc.dTs')
-    prob.model.connect(pt+':RlineMap',pt+'.balance.rhs:BPR')
+    prob.model.connect(pt+':RlineMap', pt+'.balance.rhs:BPR')
 
     prob.model.connect(pt+':ram_recovery', pt+'.inlet.ram_recovery')
     prob.model.connect('TOC.duct2.s_dPqP', pt+'.duct2.s_dPqP')
@@ -262,7 +259,7 @@ for pt in pts:
     prob.model.connect('TOC.lpt.s_Np', pt+'.lpt.s_Np')
 
     prob.model.connect('TOC.gearbox.gear_ratio', pt+'.gearbox.gear_ratio')
-    prob.model.connect('TOC.core_nozz.Throat:stat:area',pt+'.balance.rhs:W')
+    prob.model.connect('TOC.core_nozz.Throat:stat:area', pt+'.balance.rhs:W')
 
     prob.model.connect('TOC.inlet.Fl_O:stat:area', pt+'.inlet.area')
     prob.model.connect('TOC.fan.Fl_O:stat:area', pt+'.fan.area')
@@ -282,7 +279,6 @@ for pt in pts:
     prob.model.connect('TOC.byp_bld.Fl_O:stat:area', pt+'.byp_bld.area')
     prob.model.connect('TOC.duct17.Fl_O:stat:area', pt+'.duct17.area')
 
-
 prob.model.connect('RTO.balance.hpt_chrg_cool_frac', 'TOC.bld3.bld_exit:frac_W')
 prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'TOC.bld3.bld_inlet:frac_W')
 
@@ -291,7 +287,6 @@ prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'SLS.bld3.bld_inlet:frac_
 
 prob.model.connect('RTO.balance.hpt_chrg_cool_frac', 'CRZ.bld3.bld_exit:frac_W')
 prob.model.connect('RTO.balance.hpt_nochrg_cool_frac', 'CRZ.bld3.bld_inlet:frac_W')
-
 
 bal = prob.model.add_subsystem('bal', om.BalanceComp())
 bal.add_balance('TOC_BPR', val=23.7281, units=None, eq_units='ft/s', use_mult=True)
@@ -335,7 +330,7 @@ newton.options['solve_subsystems'] = True
 newton.options['max_sub_solves'] = 10
 newton.options['err_on_non_converge'] = True
 newton.options['reraise_child_analysiserror'] = False
-newton.linesearch =  om.BoundsEnforceLS()
+newton.linesearch = om.BoundsEnforceLS()
 newton.linesearch.options['bound_enforcement'] = 'scalar'
 newton.linesearch.options['iprint'] = -1
 
@@ -365,7 +360,6 @@ prob.model.recording_options['record_inputs'] = True
 prob.model.recording_options['record_outputs'] = True
 
 prob.setup(check=False)
-
 prob['RTO.hpt_cooling.x_factor'] = 0.9
 
 # initial guesses
@@ -396,7 +390,7 @@ for pt in pts:
 
     if pt == 'SLS':
         prob[pt+'.balance.FAR'] = 0.02541
-        prob[pt+'.balance.W'] = 2000. #1734.44
+        prob[pt+'.balance.W'] = 2000.  # 1734.44
         prob[pt+'.balance.BPR'] = 27.3467
         prob[pt+'.balance.fan_Nmech'] = 1953.1
         prob[pt+'.balance.lp_Nmech'] = 6054.5
@@ -437,7 +431,5 @@ prob.run_model()
 for pt in ['TOC']+pts:
     viewer(prob, pt)
 
-print()
-print('Diameter', prob['TOC.fan_dia.FanDia'][0])
 print("time", time.time() - st)
 

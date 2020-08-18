@@ -83,7 +83,6 @@ des_vars.add_output('duct17:MN_out', 0.45),
 des_vars.add_output('TOC:alt', 35000., units='ft'),
 des_vars.add_output('TOC:MN', 0.8),
 des_vars.add_output('TOC:T4max', 3150.0, units='degR'),
-# des_vars.add_output('FAR', 0.02833)
 des_vars.add_output('TOC:Fn_des', 6073.4, units='lbf'),
 des_vars.add_output('TOC:ram_recovery', 0.9980),
 des_vars.add_output('TR', 0.926470588)
@@ -205,7 +204,6 @@ prob.model.add_subsystem('RTO', N3(design=False, cooling=True))
 prob.model.add_subsystem('SLS', N3(design=False))
 prob.model.add_subsystem('CRZ', N3(design=False))
 
-
 for pt in pts:
 
     prob.model.connect(pt+':alt', pt+'.fc.alt')
@@ -264,8 +262,6 @@ for pt in pts:
 
     prob.model.connect('TOC.gearbox.gear_ratio', pt+'.gearbox.gear_ratio')
     prob.model.connect('TOC.core_nozz.Throat:stat:area',pt+'.balance.rhs:W')
-    # prob.model.connect('TOC.byp_nozz.Throat:stat:area',pt+'.balance.rhs:BPR')
-
 
     prob.model.connect('TOC.inlet.Fl_O:stat:area', pt+'.inlet.area')
     prob.model.connect('TOC.fan.Fl_O:stat:area', pt+'.fan.area')
@@ -326,7 +322,6 @@ newton.linesearch.options['iprint'] = -1
 
 prob.model.linear_solver = om.DirectSolver(assemble_jac=True)
 
-
 # setup the optimization
 prob.driver = om.pyOptSparseDriver()
 prob.driver.options['optimizer'] = 'SNOPT'
@@ -349,8 +344,6 @@ recorder = om.SqliteRecorder('N3_opt.sql')
 prob.model.add_recorder(recorder)
 prob.model.recording_options['record_inputs'] = True
 prob.model.recording_options['record_outputs'] = True
-
-
 
 prob.setup(check=False)
 
