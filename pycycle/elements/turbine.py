@@ -172,7 +172,7 @@ class Bleeds(om.ExplicitComponent):
                               desc='thermodynamic data set', recordable=False)
         self.options.declare('main_flow_elements',
                               desc='set of elements present in the flow')
-        self.options.declare('bld_flow_elements', default=AIR_MIX,
+        self.options.declare('bld_flow_elements',
                               desc='set of elements present in the flow')
         self.options.declare('bleed_names', types=Iterable, desc='list of names for the bleed ports',
                               default=[])
@@ -198,6 +198,8 @@ class Bleeds(om.ExplicitComponent):
         self.bld_flow_wt_mole = bld_flow_thermo.wt_mole
         self.n_bld_flow_prods = len(self.bld_flow_prods)
 
+        self.aij = main_flow_thermo.aij
+
         # primary inputs and outputs
         self.add_input('Pt_in', val=0.0, units='psi',
                        desc='turbine entrance pressure')
@@ -212,6 +214,7 @@ class Bleeds(om.ExplicitComponent):
                         desc='turbine exit mass flow rate')
         self.add_output('n_out', shape=self.n_main_flow_prods,
                         desc='turbine exit flow composition')
+        self.add_output('b0_out', val=main_flow_thermo.b0)
 
         # bleed inputs and outputs
         for BN in bleeds:
@@ -228,6 +231,7 @@ class Bleeds(om.ExplicitComponent):
             self.declare_partials(BN+':Pt', ['Pt_in', 'Pt_out', BN+':frac_P'])
             self.declare_partials('W_out', BN+':W', val=1.0)
             self.declare_partials('n_out', [BN+':W', BN+':n'])
+            self.declare_partials('b0_out', [BN+':W', BN+':n'])
 
         # create mapping for main and bleed flow
         self.main_flow_idx_map = {prod: i for i, prod in enumerate(self.main_flow_prods)}
@@ -243,6 +247,7 @@ class Bleeds(om.ExplicitComponent):
 
         self.declare_partials('W_out', 'W_in', val=1.0)
         self.declare_partials('n_out', ['W_in', 'n_in'])
+        self.declare_partials('b0_out', ['W_in', 'n_in'])
 
     def compute(self, inputs, outputs):
 
@@ -279,6 +284,7 @@ class Bleeds(om.ExplicitComponent):
         flow_mass_norm = flow_mass / W_out
         outputs['n_out'] = flow_mass_norm / self.main_flow_wt_mole
         outputs['W_out'] = W_out
+        outputs['b0_out'] = np.sum(self.aij*outputs['n_out'], axis=1)
 
     def compute_partials(self, inputs, J):
 
@@ -321,6 +327,9 @@ class Bleeds(om.ExplicitComponent):
         A = (np.diag(mfwm) - np.outer(n_mass, mfwm)/n_mass_sum)
         J['n_out', 'n_in'] = (A.T * W_in/(exit_total_mass*n_mass_sum*mfwm)).T
 
+        J['b0_out', 'W_in'] = np.matmul(self.aij,J['n_out','W_in'])
+        J['b0_out', 'n_in'] = np.matmul(self.aij,J['n_out', 'n_in'])
+
         # Jacobian elements and modifications due to bleed flows
         for BN in bleeds:
             # J['W_out', BN + ':W'] = 1.0
@@ -346,6 +355,8 @@ class Bleeds(om.ExplicitComponent):
             A = self.mix_mat*bfwm*W_bld - np.outer(bld_mass_flw, bfwm)
             J['n_out', BN_n] = (A.T / (exit_total_mass*bld_mass_sum*mfwm)).T
 
+            J['b0_out', BN_W] = np.matmul(self.aij,J['n_out',BN_W])
+            J['b0_out', BN_n] = np.matmul(self.aij,J['n_out', BN_n])
 
 class EnthalpyAndPower(om.ExplicitComponent):
     """Calculates exit enthalpy and shaft power for the turbine"""
@@ -487,7 +498,53 @@ class EnthalpyAndPower(om.ExplicitComponent):
 
 
 class Turbine(om.Group):
-    """An Assembly that models a turbine"""
+    """
+    An Assembly that models a turbine
+
+    --------------
+    Flow Stations
+    --------------
+    Fl_I
+    Fl_O
+
+    -------------
+    Design
+    -------------
+        inputs
+        --------
+        map.PRdes
+        map.effDes
+        alphaMap
+        MN
+
+        outputs
+        --------
+        s_PR
+        s_Wc
+        s_eff
+        s_Nc
+
+    -------------
+    Off-Design
+    -------------
+        inputs
+        --------
+        s_PR
+        s_Wc
+        s_eff
+        s_Nc
+        area
+        
+        outputs
+        --------
+        Wp
+        PR
+        eff
+        eff_poly
+        Np
+        power
+        trq
+    """
 
     def initialize(self):
         self.options.declare('map_data', default=LPT2269)
@@ -508,6 +565,17 @@ class Turbine(om.Group):
                               Options are `slinear`, `cubic`, `quintic`.')
         self.options.declare('map_extrap', default=False, desc='Switch to allow extrapoloation off map')
 
+        self.default_des_od_conns = [
+            # (design src, off-design target)
+            ('s_WpDes', 's_WpDes'),
+            ('s_PRdes', 's_PRdes'),
+            ('s_effDes', 's_effDes'), 
+            ('s_NpDes', 's_NpDes'), 
+            ('Fl_O:stat:area', 'area')
+        ]
+
+
+
     def setup(self):
 
         thermo_data = self.options['thermo_data']
@@ -523,14 +591,16 @@ class Turbine(om.Group):
         gas_thermo = species_data.Thermo(thermo_data, init_reacts=elements)
         self.gas_prods = gas_thermo.products
         self.num_prod = len(self.gas_prods)
+        num_element = gas_thermo.num_element
 
         bld_thermo = species_data.Thermo(
             thermo_data, init_reacts=bleed_elements)
         self.bld_prods = bld_thermo.products
         self.num_bld_prod = len(self.bld_prods)
+        num_bld_element = bld_thermo.num_element
 
         # Create inlet flow station
-        in_flow = FlowIn(fl_name='Fl_I', num_prods=self.num_prod)
+        in_flow = FlowIn(fl_name='Fl_I', num_prods=self.num_prod, num_elements=num_element)
         self.add_subsystem('in_flow', in_flow, promotes_inputs=['Fl_I:*'])
 
         self.add_subsystem('corrinputs', CorrectedInputsCalc(),
@@ -555,7 +625,7 @@ class Turbine(om.Group):
 
         # Calculate ideal flow station properties
         self.add_subsystem('ideal_flow', SetTotal(thermo_data=thermo_data, mode='S', init_reacts=elements),
-                           promotes_inputs=[('S', 'Fl_I:tot:S'), ('init_prod_amounts', 'Fl_I:tot:n')])
+                           promotes_inputs=[('S', 'Fl_I:tot:S'), ('b0', 'Fl_I:tot:b0')])
         self.connect("press_drop.Pt_out", "ideal_flow.P")
 
         # # Calculate enthalpy drop across turbine
@@ -564,12 +634,14 @@ class Turbine(om.Group):
         # self.connect("ideal_flow.h", "enth_drop.ht_out_ideal")
 
         for BN in bleeds:
-            bld_flow = FlowIn(fl_name=BN, num_prods=self.num_bld_prod)
+            bld_flow = FlowIn(fl_name=BN, num_prods=self.num_bld_prod, num_elements=num_bld_element)
             self.add_subsystem(BN, bld_flow, promotes_inputs=[
                                '{}:*'.format(BN)])
+            self.set_input_defaults('{}:tot:b0'.format(BN), bld_thermo.b0)
 
         # Calculate bleed parameters
-        blds = Bleeds(bleed_names=bleeds, main_flow_elements=elements)
+        blds = Bleeds(bleed_names=bleeds, thermo_data = thermo_data, 
+                main_flow_elements=elements, bld_flow_elements = bleed_elements)
         self.add_subsystem('blds', blds,
                            promotes_inputs=[('W_in', 'Fl_I:stat:W'),
                                             ('Pt_in', 'Fl_I:tot:P'), ('n_in', 'Fl_I:tot:n')] +
@@ -589,13 +661,13 @@ class Turbine(om.Group):
             # Determine bleed inflow properties
             bleed_names2.append(BN + '_inflow')
             self.add_subsystem(BN + '_inflow', SetTotal(thermo_data=thermo_data, mode='h', init_reacts=bleed_elements),
-                               promotes_inputs=[('init_prod_amounts', BN + ":tot:n"), ('h', BN + ':tot:h')])
+                               promotes_inputs=[('b0', BN + ":tot:b0"), ('h', BN + ':tot:h')])
             self.connect('blds.' + BN + ':Pt', BN + "_inflow.P")
 
             # Ideally expand bleeds to exit pressure
             bleed_names2.append(BN + '_ideal')
             self.add_subsystem(BN + '_ideal', SetTotal(thermo_data=thermo_data, mode='S', init_reacts=bleed_elements),
-                               promotes_inputs=[('init_prod_amounts', BN + ":tot:n")])
+                               promotes_inputs=[('b0', BN + ":tot:b0")])
             self.connect(BN + "_inflow.flow:S", BN + "_ideal.S")
             self.connect("press_drop.Pt_out", BN + "_ideal.P")
 
@@ -613,7 +685,7 @@ class Turbine(om.Group):
         real_flow_b4bld = SetTotal(thermo_data=thermo_data, mode='h',
                      init_reacts=elements, fl_name="Fl_O_b4bld:tot")
         self.add_subsystem('real_flow_b4bld', real_flow_b4bld,
-                           promotes_inputs=[('init_prod_amounts', 'Fl_I:tot:n')])
+                           promotes_inputs=[('b0', 'Fl_I:tot:b0')])
         self.connect('ht_out_b4bld', 'real_flow_b4bld.h')
         self.connect('press_drop.Pt_out', 'real_flow_b4bld.P')
 
@@ -630,10 +702,10 @@ class Turbine(om.Group):
                            promotes_outputs=['Fl_O:tot:*'])
         self.connect("pwr_turb.ht_out", "real_flow.h")
         self.connect("press_drop.Pt_out", "real_flow.P")
-        self.connect("blds.n_out", "real_flow.init_prod_amounts")
+        self.connect("blds.b0_out", "real_flow.b0")
 
         self.add_subsystem('FAR_passthru', PassThrough(
-            'Fl_I:FAR', 'Fl_O:FAR', 0.0), promotes=['*'])
+            'Fl_I:FAR', 'Fl_O:FAR', 1.0), promotes=['*'])
 
        # Calculate static properties
         if statics:
@@ -644,7 +716,7 @@ class Turbine(om.Group):
                 self.add_subsystem('out_stat', out_stat,
                                    promotes_inputs=['MN'],
                                    promotes_outputs=['Fl_O:stat:*'])
-                self.connect('blds.n_out', 'out_stat.init_prod_amounts')
+                self.connect('blds.b0_out', 'out_stat.b0')
                 self.connect('Fl_O:tot:S', 'out_stat.S')
                 self.connect('Fl_O:tot:h', 'out_stat.ht')
                 self.connect('W_out', 'out_stat.W')
@@ -658,7 +730,7 @@ class Turbine(om.Group):
                 self.add_subsystem('out_stat', out_stat,
                                    promotes_inputs=['area'],
                                    promotes_outputs=['Fl_O:stat:*'])
-                self.connect('blds.n_out', 'out_stat.init_prod_amounts')
+                self.connect('blds.b0_out', 'out_stat.b0')
                 self.connect('Fl_O:tot:S', 'out_stat.S')
                 self.connect('Fl_O:tot:h', 'out_stat.ht')
                 self.connect('W_out', 'out_stat.W')
@@ -673,6 +745,12 @@ class Turbine(om.Group):
                 'W_out', 'Fl_O:stat:W', 1.0, units="lbm/s"), promotes=['*'])
             self.set_order(['in_flow', 'corrinputs', 'map', 'press_drop', 'ideal_flow'] + bleeds + ['blds'] + bleed_names2 +
                            ['pwr_turb','real_flow_b4bld', 'eff_poly_calc', 'real_flow', 'FAR_passthru', 'W_passthru'])
+
+        self.set_input_defaults('Fl_I:FAR', val=0., units=None)
+        self.set_input_defaults('eff', val=0.99, units=None)
+        self.set_input_defaults('Fl_I:tot:b0', gas_thermo.b0)
+        # if not designFlag: 
+        #     self.set_input_defaults('area', val=1, units='in**2')
 
 
 if __name__ == "__main__":

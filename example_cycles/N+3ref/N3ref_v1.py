@@ -9,7 +9,7 @@ Version 1.0 of the N+3 hybrid engine model
 Current Features:
     - Single bypass duct simulating the pressure drop and heat transfer from the cold side HX
     - Single turbine exhaust duct simulating the pressure drop and heat transfer from the hot side HX
-    - Simple heat engine component implemented for the heat transfer model
+    - Simple heat engine component implemented for the heat transfer model from openconcept
 """
 
 
@@ -31,7 +31,7 @@ from N3_HPT_map import HPTMap
 from N3_LPT_map import LPTMap
 
 
-class N3(om.Group):
+class N3(pyc.Cycle):
     """
     OpenMDAO group for the N+3 engine cycle
     """

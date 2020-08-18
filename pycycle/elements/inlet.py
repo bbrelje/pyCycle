@@ -86,6 +86,12 @@ class Inlet(om.Group):
         self.options.declare('design', default=True,
                               desc='Switch between on-design and off-design calculation.')
 
+        self.default_des_od_conns = [
+            # (design src, off-design target)
+            ('Fl_O:stat:area', 'area'),
+        ]
+
+
     def setup(self):
         thermo_data = self.options['thermo_data']
         elements = self.options['elements']
@@ -94,10 +100,11 @@ class Inlet(om.Group):
 
         gas_thermo = species_data.Thermo(thermo_data, init_reacts=elements)
         gas_prods = gas_thermo.products
-        num_prod = len(gas_prods)
+        num_prod = gas_thermo.num_prod
+        num_element = gas_thermo.num_element
 
         # Create inlet flow station
-        flow_in = FlowIn(fl_name='Fl_I', num_prods=num_prod)
+        flow_in = FlowIn(fl_name='Fl_I', num_prods=num_prod, num_elements=num_element)
         self.add_subsystem('flow_in', flow_in, promotes=['Fl_I:tot:*', 'Fl_I:stat:*'])
 
         # Perform inlet engineering calculations
@@ -110,7 +117,7 @@ class Inlet(om.Group):
         real_flow = SetTotal(thermo_data=thermo_data, mode="T", init_reacts=elements, fl_name="Fl_O:tot")
 
         self.add_subsystem('real_flow', real_flow,
-                           promotes_inputs=[('T', 'Fl_I:tot:T'), ('init_prod_amounts', 'Fl_I:tot:n')],
+                           promotes_inputs=[('T', 'Fl_I:tot:T'), ('b0', 'Fl_I:tot:b0')],
                            promotes_outputs=['Fl_O:*'])
         self.connect("calcs_inlet.Pt_out", "real_flow.P")
 
@@ -120,7 +127,7 @@ class Inlet(om.Group):
             if design:
                 #   Calculate static properties
                 self.add_subsystem('out_stat', SetStatic(mode="MN", thermo_data=thermo_data, init_reacts=elements, fl_name="Fl_O:stat"),
-                                   promotes_inputs=[('init_prod_amounts', 'Fl_I:tot:n'), ('W', 'Fl_I:stat:W'), 'MN'],
+                                   promotes_inputs=[('b0', 'Fl_I:tot:b0'), ('W', 'Fl_I:stat:W'), 'MN'],
                                    promotes_outputs=['Fl_O:stat:*'])
 
                 self.connect('Fl_O:tot:S', 'out_stat.S')
@@ -132,7 +139,7 @@ class Inlet(om.Group):
                 # Calculate static properties
                 out_stat = SetStatic(mode="area", thermo_data=thermo_data, init_reacts=elements,
                                          fl_name="Fl_O:stat")
-                prom_in = [('init_prod_amounts', 'Fl_I:tot:n'),
+                prom_in = [('b0', 'Fl_I:tot:b0'),
                            ('W', 'Fl_I:stat:W'),
                            'area']
                 prom_out = ['Fl_O:stat:*']
@@ -148,16 +155,32 @@ class Inlet(om.Group):
             self.add_subsystem('W_passthru', PassThrough('Fl_I:stat:W', 'Fl_O:stat:W', 0.0, units= "lbm/s"),
                                promotes=['*'])
 
+        # if not design: 
+        #     self.set_input_defaults('area', val=1, units='in**2') 
+
+        self.set_input_defaults('Fl_I:tot:b0', gas_thermo.b0)
+
 
 if __name__ == "__main__":
+    from pycycle import constants
 
     p = om.Problem()
     p.model = Inlet()
+
+    thermo = species_data.Thermo(species_data.janaf, constants.AIR_MIX)
+    p.model.set_input_defaults('Fl_I:tot:T', 284, units='degK')
+    p.model.set_input_defaults('Fl_I:tot:P', 5.0, units='lbf/inch**2')
+    # p.model.set_input_defaults('Fl_I:tot:n', thermo.init_prod_amounts)
+    # p.model.set_input_defaults('Fl_I:tot:b0', thermo.b0)
+    p.model.set_input_defaults('Fl_I:stat:V', 0.0, units='ft/s')#keep
+    p.model.set_input_defaults('Fl_I:stat:W', 1, units='kg/s')
 
     p.setup()
 
     #view_model(p)
     p.run_model()
+    # print(p.get_val('Fl_I:tot:T', units='degK'))
+    p.model.list_outputs(units=True)
 
     # generates regression testing setup
     #regression_generator(p)
